@@ -16,11 +16,12 @@ This distribution contains code for constructing and registering conformal spher
 </UL>
 <HR>
 <A NAME="LINKS"><B>LINKS</B></A><br>
-<A href="http://www.cs.jhu.edu/~misha/MyPapers/SGP18.pdf">SGP 2018 Paper</A><br>
-<A href="MoebiusRegistration.x64.zip">Windows Executables</A><br>
-<A href="MoebiuseRegistration.x64.lib.zip">Windows libraries and DLLs</A><br>
-<A href="MoebiusRegistration.zip">Source Code</A><br>
-<A href="license.txt">License</A><br>
+<UL>
+<B>Papers</B> <A HREF="http://www.cs.jhu.edu/~misha/MyPapers/SGP12.pdf">[Kazhdan, Solomon, and Ben-Chen, 2012]</A> <A href="http://www.cs.jhu.edu/~misha/MyPapers/SGP18.pdf">[Baden, Crane, and Kazhdan, 2018]</A><br>
+<B>Binaries</B> <A href="MoebiusRegistration.x64.zip">Windows Executables</A> <A href="MoebiuseRegistration.x64.lib.zip">Windows libraries and DLLs</A><br>
+<B>Source Code</B> <A href="MoebiusRegistration.zip">ZIP</A><br>
+<B>License</B> <A href="license.txt">BSD</A><br>
+</UL>
 
 <HR>
 <A NAME="EXECUTABLES"><B>EXECUTABLES</B></A><br>
