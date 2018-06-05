@@ -45,29 +45,16 @@ namespace SphericalGeometry
 	unsigned long long Key( int v1 , int v2 );
 	template< class Real > double TriangleArea( Point3D< Real > p1 , Point3D< Real > p2 , Point3D< Real > p3 );
 
-	template< class Real > SquareMatrix< Real , 3 > Correlate( SphericalGrid< Real >& source , SphericalGrid< Real >& target , Real& error , bool gradientDomain );
-	template< class Real > SquareMatrix< Real , 3 > Correlate( SphericalGrid< Real >& source , SphericalGrid< Real >& target , bool gradientDomain ){ Real e ; return Correlate( source , target , e , gradientDomain ); }
-
-	template< class Real > SquareMatrix< Real , 3 > ACorrelate( SphericalGrid< Real >& source , SphericalGrid< Real >& target , Real& error , bool gradientDomain );
-	template< class Real > SquareMatrix< Real , 3 > ACorrelate( SphericalGrid< Real >& source , SphericalGrid< Real >& target , bool gradientDomain ){ Real e ; return ACorrelate( source , target , e , gradientDomain ); }
+	template< class Real > SquareMatrix< Real , 3 > Correlate( SphericalGrid< Real >& source , SphericalGrid< Real >& target , Real& error , bool gradientDomain , bool invert );
 
 	template< class Real >
-	struct DoubleCircularInversion
-	{
-		Point2D< Real > center;
-		DoubleCircularInversion( Point2D< Real > c=Point2D< Real >() ) : center(c) {}
-		Point2D< Real > operator() ( Point2D< Real > p ) const;
-	};
-	template< class Real > std::ostream& operator << ( std::ostream& os , const DoubleCircularInversion< Real > dci ){ return os << dci.center; }
-
-	template< class Real >
-	struct DoubleSphericalInversion
+	struct SphericalInversion
 	{
 		Point3D< Real > center;
-		DoubleSphericalInversion( Point3D< Real > c=Point3D< Real >() ) : center(c) {}
+		SphericalInversion( Point3D< Real > c=Point3D< Real >() ) : center(c) {}
 		Point3D< Real > operator() ( Point3D< Real > p ) const;
 	};
-	template< class Real > std::ostream& operator << ( std::ostream& os , const DoubleSphericalInversion< Real > dsi ){ return os << dsi.center; }
+	template< class Real > std::ostream& operator << ( std::ostream& os , const SphericalInversion< Real > si ){ return os << si.center; }
 
 	template< class Real >
 	struct FractionalLinearTransformation
@@ -75,8 +62,7 @@ namespace SphericalGeometry
 		SquareMatrix< std::complex< Real > , 2 > matrix;
 
 		FractionalLinearTransformation( void ){ matrix(0,0) = matrix(1,1) = 1 , matrix(0,1) = matrix(1,0) = 0; }
-		FractionalLinearTransformation( DoubleCircularInversion< Real > di );
-		FractionalLinearTransformation( DoubleSphericalInversion< Real > di );
+		FractionalLinearTransformation( SphericalInversion< Real > si );
 		FractionalLinearTransformation( SquareMatrix< Real , 3 > m );
 
 		Point2D< Real > operator()( Point2D< Real > p ) const;
@@ -125,7 +111,7 @@ namespace SphericalGeometry
 
 		FractionalLinearTransformation< Real > normalizer( int iters , double cutOff , bool gaussNewton , bool verbose=false ) const;
 		int normalize( int iters , double cutOff , bool gaussNewton , bool verbose=false );
-		static Point3D< Real > DoubleSphericalInvert( Point3D< Real > p , Point3D< Real > c );
+		static Point3D< Real > SphericalInvert( Point3D< Real > p , Point3D< Real > c );
 	protected:
 		void _normalize( bool verbose );
 	};

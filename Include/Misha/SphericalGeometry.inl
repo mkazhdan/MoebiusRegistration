@@ -77,7 +77,7 @@ double SphericalGeometry::TriangleArea( Point3D< Real > p1 , Point3D< Real > p2 
 }
 
 template< class Real >
-SquareMatrix< Real , 3 > SphericalGeometry::Correlate( SphericalGrid< Real >& source , SphericalGrid< Real >& target , Real& error , bool gradientDomain )
+SquareMatrix< Real , 3 > SphericalGeometry::Correlate( SphericalGrid< Real >& source , SphericalGrid< Real >& target , Real& error , bool gradientDomain , bool invert )
 {
 	FourierKeySO3< Real> keySO3; 
 	HarmonicTransform< Real > hForm; 
@@ -89,73 +89,27 @@ SquareMatrix< Real , 3 > SphericalGeometry::Correlate( SphericalGrid< Real >& so
 	hForm.ForwardFourier( source, sourceKey );
 	hForm.ForwardFourier( target, targetKey );
 
-	if( gradientDomain ) for( int i=0 ; i<sourceKey.bandWidth() ; i++ )
-	{
-		Real scl = (Real)sqrt( i*(i+1) );
-		for( int j=0 ; j<=i ; j++ ) sourceKey(i,j) *= scl , targetKey(i,j) *= scl;
-	}
+	if( gradientDomain )
+#pragma omp parallel for
+		for( int i=0 ; i<sourceKey.bandWidth() ; i++ )
+		{
+			Real scl = (Real)sqrt( i*(i+1) );
+			for( int j=0 ; j<=i ; j++ ) sourceKey(i,j) *= scl , targetKey(i,j) *= scl;
+		}
 
 	// Allocate memory 
 	if( !keySO3.resize( source.resolution() ) ) fprintf( stderr , "[ERROR] Correlate: Could not allocate key: %d\n" , source.resolution() ) , exit( 0 ); 
 
 	// Compute the aligning rotation
+#pragma omp parallel for
 	for( int i=0 ; i<keySO3.bandWidth(); i++ ) for( int j=0 ; j<=i ; j++ ) for( int k=0 ; k<=i ; k++ ) 
 	{
 		// set each Wigner-D coefficient to be the cross multiplication 
 		// within each frequency 
-		keySO3(i,j,k) = sourceKey(i,k) * targetKey(i,j).conjugate();
-		if( k ) keySO3(i,j,-k) = sourceKey(i,k).conjugate()*targetKey(i,j).conjugate();
-	}
-
-	// Take the inverse Wigner D transform 
-	wForm.InverseFourier( keySO3 , euler );
-
-	Real max = 0;
-	int maxcoords[] = { 0 , 0 , 0 };
-	for( int x=0 ; x<euler.resolution(); x++ ) for( int y=0 ; y<euler.resolution(); y++ ) for( int z=0 ; z<euler.resolution(); z++ ) if( euler(x,y,z)>max )
-	{
-		max = euler(x,y,z);
-		maxcoords[0] = x;
-		maxcoords[1] = y;
-		maxcoords[2] = z; 
-	}
-
-	euler.setCoordinates( maxcoords[0] , maxcoords[1] , maxcoords[2] , matrix );
-	SquareMatrix< Real , 3 > m;
-	for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) m(i,j) = matrix[i][j];
-	error = ( sourceKey.squareNorm() + targetKey.squareNorm() - 2.*max ) / ( sourceKey.squareNorm() + targetKey.squareNorm() );
-	return m;
-}
-template< class Real >
-SquareMatrix< Real , 3 > SphericalGeometry::ACorrelate( SphericalGrid< Real >& source , SphericalGrid< Real >& target , Real& error , bool gradientDomain )
-{
-	FourierKeySO3< Real> keySO3; 
-	HarmonicTransform< Real > hForm; 
-	WignerTransform< Real > wForm; 
-	FourierKeyS2<Real> sourceKey, targetKey; 
-	RotationGrid<Real> euler; 
-	Real matrix[3][3];
-
-	hForm.ForwardFourier( source, sourceKey );
-	hForm.ForwardFourier( target, targetKey );
-
-	if( gradientDomain ) for( int i=0 ; i<sourceKey.bandWidth() ; i++ )
-	{
-		Real scl = (Real)sqrt( i*(i+1) );
-		for( int j=0 ; j<=i ; j++ ) sourceKey(i,j) *= scl , targetKey(i,j) *= scl;
-	}
-
-	// Allocate memory 
-	if( !keySO3.resize( source.resolution() ) ) fprintf( stderr , "[ERROR] Correlate: Could not allocate key: %d\n" , source.resolution() ) , exit( 0 ); 
-
-	// Compute the aligning rotation
-	for( int i=0 ; i<keySO3.bandWidth(); i++ ) for( int j=0 ; j<=i ; j++ ) for( int k=0 ; k<=i ; k++ ) 
-	{
-		// set each Wigner-D coefficient to be the cross multiplication 
-		// within each frequency 
-		int sign = (i%2) ? -1 : 1;
+		int sign = 1;
+		if( invert && (i%2) )sign = -1;
 		keySO3(i,j,k) = sourceKey(i,k) * targetKey(i,j).conjugate() * sign;
-		if( k ) keySO3(i,j,-k) = sourceKey(i,k).conjugate()*targetKey(i,j).conjugate() *sign;
+		if( k ) keySO3(i,j,-k) = sourceKey(i,k).conjugate() * targetKey(i,j).conjugate() * sign;
 	}
 
 	// Take the inverse Wigner D transform 
@@ -163,7 +117,7 @@ SquareMatrix< Real , 3 > SphericalGeometry::ACorrelate( SphericalGrid< Real >& s
 
 	Real max = 0;
 	int maxcoords[] = { 0 , 0 , 0 };
-	for( int x=0 ; x<euler.resolution(); x++ ) for( int y=0 ; y<euler.resolution(); y++ ) for( int z=0 ; z<euler.resolution(); z++ ) if( euler(x,y,z)>max )
+	for( int x=0 ; x<euler.resolution() ; x++ ) for( int y=0 ; y<euler.resolution() ; y++ ) for( int z=0 ; z<euler.resolution() ; z++ ) if( euler(x,y,z)>max )
 	{
 		max = euler(x,y,z);
 		maxcoords[0] = x;
@@ -175,34 +129,20 @@ SquareMatrix< Real , 3 > SphericalGeometry::ACorrelate( SphericalGrid< Real >& s
 	SquareMatrix< Real , 3 > m;
 	for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) m(i,j) = matrix[i][j];
 	error = ( sourceKey.squareNorm() + targetKey.squareNorm() - 2.*max ) / ( sourceKey.squareNorm() + targetKey.squareNorm() );
-	return -m;
+	if( invert ) return -m;
+	else         return  m;
 }
 
-////////////////////////////////////////////////
-// SphericalGeometry::DoubleCircularInversion //
-////////////////////////////////////////////////
+///////////////////////////////////////////
+// SphericalGeometry::SphericalInversion //
+///////////////////////////////////////////
 template< class Real >
-Point2D< Real > SphericalGeometry::DoubleCircularInversion< Real >::operator() ( Point2D< Real > p ) const
+Point3D< Real > SphericalGeometry::SphericalInversion< Real >::operator() ( Point3D< Real > p ) const
 {
-	p /= Point2D< Real >::SquareNorm( p );
-	p += center;
-	p /= Point2D< Real >::SquareNorm( p );
-	p *= 1 - Point2D< Real >::SquareNorm( center );
-	p += center;
-	return p;
-}
-
-/////////////////////////////////////////////////
-// SphericalGeometry::DoubleSphericalInversion //
-/////////////////////////////////////////////////
-template< class Real >
-Point3D< Real > SphericalGeometry::DoubleSphericalInversion< Real >::operator() ( Point3D< Real > p ) const
-{
-	p /= Point3D< Real >::SquareNorm( p );
-	p += center;
+	p -= center;
 	p /= Point3D< Real >::SquareNorm( p );
 	p *= 1 - Point3D< Real >::SquareNorm( center );
-	p += center;
+	p -= center;
 	return p;
 }
 
@@ -210,17 +150,9 @@ Point3D< Real > SphericalGeometry::DoubleSphericalInversion< Real >::operator() 
 // SphericalGeometry::FractionalLinearTransformation //
 ///////////////////////////////////////////////////////
 template< class Real >
-SphericalGeometry::FractionalLinearTransformation< Real >::FractionalLinearTransformation( DoubleCircularInversion< Real > di )
+SphericalGeometry::FractionalLinearTransformation< Real >::FractionalLinearTransformation( SphericalInversion< Real > si )
 {
-	std::complex< Real > c( di.center[0] , di.center[1] );
-	matrix(0,0) = matrix(1,1) = 1;
-	matrix(1,0) = c;
-	matrix(0,1) = std::conj( c );
-}
-template< class Real >
-SphericalGeometry::FractionalLinearTransformation< Real >::FractionalLinearTransformation( DoubleSphericalInversion< Real > di )
-{
-	matrix = _ITransformation( StereographicProjection( di(_ZERO) ) , StereographicProjection( di(_INFINITY) ) , StereographicProjection( di(_ONE) ) );
+	matrix = _ITransformation( StereographicProjection( si(_ZERO) ) , StereographicProjection( si(_INFINITY) ) , StereographicProjection( si(_ONE) ) );
 }
 template< class Real >
 SphericalGeometry::FractionalLinearTransformation< Real >::FractionalLinearTransformation( SquareMatrix< Real , 3 > m )
@@ -428,8 +360,7 @@ SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( void ) const
 		for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) _D(i,j) -= p[i] * p[j];
 		D += _D * masses[t];
 	}
-//	return D * (Real)( 3. / (2.*M_PI) );
-	return D * (Real)2;
+	return -D * (Real)2;
 };
 template< class Real >
 SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( SphericalGeometry::FractionalLinearTransformation< Real > flt ) const
@@ -442,8 +373,7 @@ SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( SphericalGeom
 		for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) _D(i,j) -= p[i] * p[j];
 		D += _D * masses[t];
 	}
-//	return D * (Real)( 3. / (2.*M_PI) );
-	return D * (Real)2;
+	return -D * (Real)2;
 };
 
 template< class Real >
@@ -479,7 +409,7 @@ SphericalGeometry::FractionalLinearTransformation< Real > SphericalGeometry::Mes
 		}
 		else center = - D * c * 2;
 		// [WARNING] Accumulating double inversions through fractional linear transformations can result in a loss of precision
-		flt = FractionalLinearTransformation< Real >( DoubleSphericalInversion< Real >( center ) ) * flt;
+		flt = FractionalLinearTransformation< Real >( SphericalInversion< Real >( center ) ) * flt;
 	}
 	if( verbose )
 	{
@@ -503,7 +433,7 @@ int SphericalGeometry::Mesh< Real >::normalize( int iters , double cutOff , bool
 			c = - D2 * ( D * c );
 		}
 		else c = - D * c * 2;
-		DoubleSphericalInversion< Real > inv( c );
+		SphericalInversion< Real > inv( c );
 #pragma omp parallel for
 		for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = inv( vertices[i] );
 	}

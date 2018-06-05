@@ -225,8 +225,8 @@ void Execute( void )
 		Timer t;
 		Real error , rotError , refError;
 		SquareMatrix< Real , 3 > R , rotR , refR;
-		if( CorrelationType.value & CORRELATE_ROTATION   ) rotR = SphericalGeometry::Correlate( sourceGrid , targetGrid , rotError , GradientDomain.set );
-		if( CorrelationType.value & CORRELATE_REFLECTION ) refR = SphericalGeometry::ACorrelate( sourceGrid , targetGrid , refError , GradientDomain.set );
+		if( CorrelationType.value & CORRELATE_ROTATION   ) rotR = SphericalGeometry::Correlate( sourceGrid , targetGrid , rotError , GradientDomain.set , false );
+		if( CorrelationType.value & CORRELATE_REFLECTION ) refR = SphericalGeometry::Correlate( sourceGrid , targetGrid , refError , GradientDomain.set , true  );
 		switch( CorrelationType.value )
 		{
 		case CORRELATE_ROTATION:
