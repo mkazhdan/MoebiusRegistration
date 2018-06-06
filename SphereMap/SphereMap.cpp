@@ -41,9 +41,9 @@ DAMAGE.
 #include "Misha/SphericalGeometry.h"
 
 cmdLineParameter< char* > In( "in" ) , Out( "out" ) , OutGrid( "outG" ) , OutTessellation( "outT" );
-cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 );
-cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f );
-cmdLineReadable Verbose( "verbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" );
+cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , RandomSeed( "sRand" , 0 );
+cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , RandomInversion( "randomInversion" , 0.f );
+cmdLineReadable Verbose( "verbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , Orient( "orient" );
 
 void Usage( const char* ex )
 {
@@ -57,13 +57,16 @@ void Usage( const char* ex )
 	printf( "\t[--%s <Moebius centering cut-off>=%g]\n" , CutOff.name , CutOff.value );
 	printf( "\t[--%s <spherical resolution>=%d]\n" , Resolution.name , Resolution.value );
 	printf( "\t[--%s <spherical diffusion time>=%g]\n" , Smooth.name , Smooth.value );
+	printf( "\t[--%s <random center of inversion radius>=%g]\n" , RandomInversion.name , RandomInversion.value );
+	printf( "\t[--%s <random seed>=%d]\n" , RandomSeed.name , RandomSeed.value );
 	printf( "\t[--%s]\n" , Randomize.name );
 	printf( "\t[--%s]\n" , NoCenter.name );
 	printf( "\t[--%s]\n" , ASCII.name );
 	printf( "\t[--%s]\n" , Collapse.name );
+	printf( "\t[--%s]\n" , Orient.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 }
-cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , NULL };
+cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &Orient , &RandomInversion , &RandomSeed , NULL };
 
 
 template< class Real >
@@ -237,6 +240,34 @@ void Execute( const std::vector< TriangleIndex >& triangles , std::vector< PlyCo
 		for( int i=0 ; i<sphericalCoordinates.size() ; i++ ) sphericalCoordinates[i] /= Length( sphericalCoordinates[i] );
 	}
 
+	if( RandomInversion.value>0 && RandomInversion.value<1 )
+	{
+		Point3D< Real > c = RandomSpherePoint< Real >() * RandomInversion.value;
+		if( Verbose.set ) std::cout << "Center of inversion:  " << c << std::endl;
+		SphericalGeometry::SphericalInversion< Real > si( c );
+#pragma omp parallel for
+		for( int i=0 ; i<sphericalCoordinates.size() ; i++ ) sphericalCoordinates[i] = si( sphericalCoordinates[i] );
+	}
+
+	// Orient the spherical parameterization so that it's outward facing
+	if( Orient.set )
+	{
+		Real pArea = 0 , nArea = 0;
+#pragma omp parallel for reduction ( + : pArea , nArea )
+		for( int i=0 ; i<triangles.size() ; i++ )
+		{
+			Point3D< Real > v[] = { sphericalCoordinates[ triangles[i][0] ] , sphericalCoordinates[ triangles[i][1] ] , sphericalCoordinates[ triangles[i][2] ] };
+			Point3D< Real > c = ( v[0] + v[1] + v[2] ) / (Real)3.;
+			Point3D< Real > n = Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] );
+			Real l = (Real)Length(n);
+			if( Point3D< Real >::Dot( c , n )>0 ) pArea += l;
+			else                                  nArea += l;
+		}
+		if( nArea>pArea )
+#pragma omp parallel for
+			for( int i=0 ; i<sphericalCoordinates.size() ; i++ ) sphericalCoordinates[i] = - sphericalCoordinates[i];
+	}
+
 	SphericalGeometry::Mesh< Real > mesh;
 	{
 		std::vector< Point3D< Real > > _vertices( vertices.size() );
@@ -244,7 +275,6 @@ void Execute( const std::vector< TriangleIndex >& triangles , std::vector< PlyCo
 		mesh = SphericalGeometry::Mesh< Real >( _vertices , sphericalCoordinates , triangles );
 		mesh.makeUnitMass();
 	}
-
 
 	if( !NoCenter.set )
 	{
@@ -313,11 +343,7 @@ void Execute( const std::vector< TriangleIndex >& triangles , std::vector< PlyCo
 	}
 
 }
-int main
-(
-	int argc ,
-	char* argv[]
-)
+int main( int argc , char* argv[] )
 {
 	cmdLineParse( argc-1 , argv+1 , params );
 	if( !In.set )
@@ -325,6 +351,7 @@ int main
 		Usage( argv[0] );
 		return EXIT_FAILURE;
 	}
+	srand( RandomSeed.value );
 	int fileType;
 	std::vector< TriangleIndex > triangles;
 	std::vector< PlyColorVertex< float > > vertices;
