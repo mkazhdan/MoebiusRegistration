@@ -32,6 +32,7 @@ DAMAGE.
 #include <iostream>
 #include "Misha/Ply.h"
 #include "Misha/SphericalGrid.h"
+#include "Misha/SphericalHarmonics.h"
 
 template< class Real > std::ostream& operator << ( std::ostream& os , const Point2D< Real > p ){ return os << "(" << p[0] << "," << p[1] << ")"; }
 template< class Real > std::ostream& operator << ( std::ostream& os , const Point3D< Real > p ){ return os << "(" << p[0] << "," << p[1] << "," << p[2] << ")"; }
@@ -105,12 +106,20 @@ namespace SphericalGeometry
 		SquareMatrix< Real , 3 > dCenter( void ) const;
 		SquareMatrix< Real , 3 > dCenter( FractionalLinearTransformation< Real > flt ) const;
 
+		template< unsigned int SHDegree > Point< Real , SphericalHarmonics::Dimension< SHDegree >() > centerSH( void ) const;
+		template< unsigned int SHDegree > SquareMatrix< Real , SphericalHarmonics::Dimension< SHDegree >() > dCenterSH( void ) const;
+		template< typename VF > void advect( VF vf , int steps );
+
+
 		Mesh& operator *= ( FractionalLinearTransformation< Real > flt );
 
 		void makeUnitMass( void );
 
 		FractionalLinearTransformation< Real > normalizer( int iters , double cutOff , bool gaussNewton , bool verbose=false ) const;
 		int normalize( int iters , double cutOff , bool gaussNewton , bool verbose=false );
+		template< unsigned int SHDegree >
+		int normalizeSH( int iters , int advectionSteps , Real advectionStepSize , double cutOff , bool gaussNewton , bool verbose=false );
+
 		static Point3D< Real > SphericalInvert( Point3D< Real > p , Point3D< Real > c );
 	protected:
 		void _normalize( bool verbose );
@@ -168,6 +177,14 @@ namespace SphericalGeometry
 
 		template< typename F >
 		void writeGrid( const char* fileName , Real smooth , bool noConstant=false , bool logSpace=false , F f=[]( Real v ){ return v; } , bool binary=true ) const;
+	};
+
+	template< class Real >
+	struct CircumscribedSphere
+	{
+		static Point3D< Real > Center( const std::vector< Point3D< Real > >& vertices , int iters );
+	protected:
+		static void _RandomCenter( const std::vector< Point3D< Real > >& vertices , Point3D< Real >& c , Real& a );
 	};
 }
 #include "Misha/SphericalGeometry.inl"

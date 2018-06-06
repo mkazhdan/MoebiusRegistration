@@ -53,6 +53,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Misha", "Misha", "{6DAADF77
 		Include\Misha\SphericalGeometry.inl = Include\Misha\SphericalGeometry.inl
 		Include\Misha\SphericalGrid.h = Include\Misha\SphericalGrid.h
 		Include\Misha\SphericalGrid.inl = Include\Misha\SphericalGrid.inl
+		Include\Misha\SphericalHarmonics.h = Include\Misha\SphericalHarmonics.h
 		Include\Misha\SquareGrid.h = Include\Misha\SquareGrid.h
 		Include\Misha\SquareGrid.inl = Include\Misha\SquareGrid.inl
 		Include\Misha\Timer.h = Include\Misha\Timer.h

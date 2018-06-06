@@ -28,6 +28,7 @@ DAMAGE.
 
 #include <algorithm>
 #include <unordered_set>
+#include <random>
 #include "Misha/Fourier.h"
 
 
@@ -337,7 +338,6 @@ Point3D< Real > SphericalGeometry::Mesh< Real >::center( void ) const
 	//    v = 3 / (4*PI) * \sum_T (p_T) * f(p_T) * |T|
 	Point3D< Real > c;
 	for( int t=0 ; t<triangles.size() ; t++ ) c += center(t) * masses[t]; // = p * ( mA / sA ) * sA;
-//	return c / ( 4. * M_PI / 3. );
 	return c;
 }
 template< class Real >
@@ -345,8 +345,61 @@ Point3D< Real > SphericalGeometry::Mesh< Real >::center( SphericalGeometry::Frac
 {
 	Point3D< Real > c;
 	for( int t=0 ; t<triangles.size() ; t++ ) c += center( t , flt ) * masses[t];
-//	return c / ( 4. * M_PI / 3. );
 	return c;
+}
+
+template< class Real >
+template< unsigned int SHDegree >
+Point< Real , SphericalHarmonics::Dimension< SHDegree >() > SphericalGeometry::Mesh< Real >::centerSH( void ) const
+{
+	static_assert( SHDegree<=SphericalHarmonics::MaxDegree , "[ERROR] Degree exceeds maximum spherical harmonic degree" );
+	std::vector< Point< double , SphericalHarmonics::Dimension< SHDegree >() > > projections( omp_get_max_threads() );
+#pragma omp parallel for
+	for( int t=0 ; t<masses.size() ; t++ )
+	{
+		int thread = omp_get_thread_num();
+		double _p[ SphericalHarmonics::Dimension< SHDegree >() ];
+		SphericalHarmonics::HarmonicValues< SHDegree >( Point3D< double >( center(t) ) , _p );
+		for( unsigned int i=0 ; i<SphericalHarmonics::Dimension< SHDegree >() ; i++ ) projections[thread][i] += _p[i] * masses[t];
+	}
+	Point< Real , SphericalHarmonics::Dimension< SHDegree >() > p;
+	for( int i=0 ; i<projections.size() ; i++ ) for( unsigned int j=0 ; j<SphericalHarmonics::Dimension< SHDegree >() ; j++ ) p[j] += (Real)projections[i][j];
+	return p;
+}
+template< class Real >
+template< unsigned int SHDegree >
+SquareMatrix< Real , SphericalHarmonics::Dimension< SHDegree >() > SphericalGeometry::Mesh< Real >::dCenterSH( void ) const
+{
+	static_assert( SHDegree<=SphericalHarmonics::MaxDegree , "[ERROR] Degree exceeds maximum spherical harmonic degree" );
+	std::vector< SquareMatrix< double , SphericalHarmonics::Dimension< SHDegree >() > > dProjections( omp_get_max_threads() );
+#pragma omp parallel for
+	for( int t=0 ; t<masses.size() ; t++ )
+	{
+		int thread = omp_get_thread_num();
+		Point3D< double > _p[ SphericalHarmonics::Dimension< SHDegree >() ];
+		SphericalHarmonics::HarmonicGradients< SHDegree >( Point3D< double >( center(t) ) , _p );
+		for( unsigned int i=0 ; i<SphericalHarmonics::Dimension< SHDegree >() ; i++ ) for( unsigned int j=0 ; j<=i ; j++ ) dProjections[thread](i,j) += Point3D< Real >::Dot( _p[i] , _p[j] ) * masses[t];
+	}
+	SquareMatrix< Real , SphericalHarmonics::Dimension< SHDegree >() > d;
+	for( int i=0 ; i<dProjections.size() ; i++ ) for( unsigned int j=0 ; j<SphericalHarmonics::Dimension< SHDegree >() ; j++ ) for( unsigned int k=0 ; k<=j ; k++ ) d(j,k) += (Real)dProjections[i](j,k);
+	for( unsigned int i=0 ; i<SphericalHarmonics::Dimension< SHDegree >() ; i++ ) for( unsigned int j=0 ; j<=i ; j++ ) d(j,i) = d(i,j);
+	return d;
+}
+template< class Real >
+template< typename VF >
+void SphericalGeometry::Mesh< Real >::advect( VF vf , int steps )
+{
+#pragma omp parallel for
+	for( int i=0 ; i<vertices.size() ; i++ )
+	{
+		Point3D< Real >& v = vertices[i];
+		for( int j=0 ; j<steps ; j++ )
+		{
+			Point3D< Real > _vf = Point3D< Real >( vf( v ) );
+			Real l = Length( _vf );
+			if( l ) v = v * cos( l ) + _vf / l * sin( l );
+		}
+	}
 }
 
 template< class Real >
@@ -404,7 +457,7 @@ SphericalGeometry::FractionalLinearTransformation< Real > SphericalGeometry::Mes
 		Point3D< Real > center;
 		if( gaussNewton )
 		{
-			SquareMatrix< Real , 3 > D2 = ( D * D.transpose() ).inverse();
+			SquareMatrix< Real , 3 > D2 = ( D.transpose() * D ).inverse();
 			center = - D2 * ( D * c );
 		}
 		else center = - D * c * 2;
@@ -429,7 +482,7 @@ int SphericalGeometry::Mesh< Real >::normalize( int iters , double cutOff , bool
 		SquareMatrix< Real , 3 > D = dCenter( );
 		if( gaussNewton )
 		{
-			SquareMatrix< Real , 3 > D2 = ( D * D.transpose() ).inverse();
+			SquareMatrix< Real , 3 > D2 = ( D.transpose() * D ).inverse();
 			c = - D2 * ( D * c );
 		}
 		else c = - D * c * 2;
@@ -444,6 +497,62 @@ int SphericalGeometry::Mesh< Real >::normalize( int iters , double cutOff , bool
 	}
 	return iters;
 }
+
+template< class Real >
+template< unsigned int SHDegree >
+int SphericalGeometry::Mesh< Real >::normalizeSH( int iters , int advectionSteps , Real advectionStepSize , double cutOff , bool gaussNewton , bool verbose )
+{
+	static const unsigned int Dim = SphericalHarmonics::Dimension< SHDegree >() - 1;
+	auto SubPoint = [&]( const Point< Real , SphericalHarmonics::Dimension< SHDegree >() >& p )
+	{
+		Point< Real , Dim > _center , _p;
+		for( int i=0 ; i<Dim ; i++ ) _p[i] = p[i+1];
+		return _p;
+	};
+	auto SubMatrix = [&]( const SquareMatrix< Real , SphericalHarmonics::Dimension< SHDegree >() >& M )
+	{
+		SquareMatrix< Real , Dim > _M;
+		for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) _M(i,j) = M(i+1,j+1);
+		return _M;
+	};
+
+	for( int i=0 ; i<iters ; i++ )
+	{
+		Point< Real , SphericalHarmonics::Dimension< SHDegree >() > center;
+		Point< Real , Dim > c = SubPoint ( centerSH< SHDegree >() );
+
+		if( verbose )
+		{
+			printf( "Moebius register[%d]: %8.2e\t" , i , sqrt( Point< Real , Dim >::SquareNorm( c ) ) );
+			printf( "( " );
+			for( int i=0 ; i<Dim ; i++ ) printf( " %8.1e" , c[i] );
+			printf( " )\n" );
+		}
+		if( Point< Real , Dim >::SquareNorm( c )<=cutOff*cutOff ) return i;
+
+		SquareMatrix< Real , Dim > D = SubMatrix( dCenterSH< SHDegree >() );
+		if( gaussNewton )
+		{
+			SquareMatrix< Real , Dim > D2 = ( D.transpose() * D ).inverse();
+			c = - D2 * ( D * c );
+		}
+		else c = - D * c * 2;
+
+		for( int i=0 ; i<Dim ; i++ ) center[i+1] = c[i];
+
+		advect( [&]( Point3D< Real > p ){ return SphericalHarmonics::Gradient< SHDegree >( center*advectionStepSize , p ); } , advectionSteps );
+	}
+	if( verbose )
+	{
+		Point< Real , Dim > c = SubPoint ( centerSH< SHDegree >() );
+		printf( "Moebius register[%d]: %8.2e\t" , iters , sqrt( Point< Real , Dim >::SquareNorm( c ) ) );
+		printf( "( " );
+		for( int i=0 ; i<Dim ; i++ ) printf( " %8.1e" , c[i] );
+		printf( " )\n" );
+	}
+	return iters;
+}
+
 template< class Real >
 void SphericalGeometry::Mesh< Real >::_normalize( bool verbose )
 {
@@ -994,3 +1103,73 @@ void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , 
 	PlyWritePolygons( fileName , v , polygons , PlyColorVertex< float >::WriteProperties , PlyColorVertex< float >::WriteComponents , PLY_ASCII , NULL , 0 );
 }
 
+////////////////////////////////////////////
+// SphericalGeometry::CircumscribedSphere //
+////////////////////////////////////////////
+template< class Real >
+void SphericalGeometry::CircumscribedSphere< Real >::_RandomCenter( const std::vector< Point3D< Real > >& vertices , Point3D< Real >& c , Real& a )
+{
+	std::random_device rd;
+	std::mt19937 gen(rd());
+	std::uniform_int_distribution<> dis(0, (int)vertices.size() - 1);
+
+	Point3D< Real > v[4]; 
+	for( int i=0 ; i<4 ; i++ ) v[i] = vertices[dis(gen)];
+
+	// Compute determinant matrices 
+	SquareMatrix< Real , 4 > A , Dx , Dy , Dz; 
+	Real dx , dy , dz;
+
+	for( int i=0 ; i<4 ; i++ ) 
+	{
+		for( int j=0 ; j<3 ; j++ ) A(i, j) = v[i][j]; 
+		A( i , 3 ) = 1; 
+	}
+	a = A.determinant(); 
+
+	for( int i=0 ; i<4 ; i++ )
+	{
+		Dx( i , 0 ) = v[i].squareNorm(); 
+		Dx( i , 1 ) = v[i][1];
+		Dx( i , 2 ) = v[i][2];
+		Dx( i , 3 ) = 1; 
+	}
+	dx = Dx.determinant(); 
+
+	for( int i=0 ; i<4 ; i++ )
+	{
+		Dy( i , 0 ) = v[i].squareNorm(); 
+		Dy( i , 1 ) = v[i][0];
+		Dy( i , 2 ) = v[i][2];
+		Dy( i , 3 ) = 1; 
+	}
+	dy = -Dy.determinant(); 
+
+	for( int i=0 ; i<4 ; i++ )
+	{
+		Dz( i , 0 ) = v[i].squareNorm(); 
+		Dz( i , 1 ) = v[i][0];
+		Dz( i , 2 ) = v[i][1];
+		Dz( i , 3 ) = 1; 
+	}
+	dz = Dz.determinant(); 
+
+	c[0] = dx/(2.*a); 
+	c[1] = dy/(2.*a);
+	c[2] = dz/(2.*a);
+}
+
+template< class Real >
+Point3D< Real > SphericalGeometry::CircumscribedSphere< Real >::Center( const std::vector< Point3D< Real > >& vertices , int iters )
+{
+	Real w=0 , x=0 , y=0 , z=0;
+#pragma omp parallel for reduction( + : w , x , y , z )
+	for( int i=0 ; i<iters ; i++ )
+	{
+		Point3D< Real > c;
+		Real _w;
+		_RandomCenter( vertices , c , _w );
+		if( _w>0 ) x += c[0] *_w , y += c[1] * _w , z += c[2] * _w , w +=_w;
+	}
+	return Point3D< Real >( x/w , y/w , z/w );
+}

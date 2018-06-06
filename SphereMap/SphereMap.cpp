@@ -41,8 +41,8 @@ DAMAGE.
 #include "Misha/SphericalGeometry.h"
 
 cmdLineParameter< char* > In( "in" ) , Out( "out" ) , OutGrid( "outG" ) , OutTessellation( "outT" );
-cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , RandomSeed( "sRand" , 0 );
-cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , RandomInversion( "randomInversion" , 0.f );
+cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , RandomSeed( "sRand" , 0 ) , SHDegree( "degree" , 1 ) , AdvectionSteps( "aSteps" , 4 );
+cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , RandomInversion( "randomInversion" , 0.f ) , AdvectionStepSize( "aStepSize" , 0.25f );
 cmdLineReadable Verbose( "verbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , Orient( "orient" );
 
 void Usage( const char* ex )
@@ -55,6 +55,9 @@ void Usage( const char* ex )
 	printf( "\t[--%s <CMCF iterations>=%d]\n" , Iterations.name , Iterations.value );
 	printf( "\t[--%s <CMCF step size>=%f]\n" , StepSize.name , StepSize.value );
 	printf( "\t[--%s <Moebius centering cut-off>=%g]\n" , CutOff.name , CutOff.value );
+	printf( "\t[--%s <spherical harmonic degree>=%d]\n" , SHDegree.name , SHDegree.value );
+	printf( "\t[--%s <advection steps>=%d]\n" , AdvectionSteps.name , AdvectionSteps.value );
+	printf( "\t[--%s <advection step size>=%f]\n" , AdvectionStepSize.name , AdvectionStepSize.value );
 	printf( "\t[--%s <spherical resolution>=%d]\n" , Resolution.name , Resolution.value );
 	printf( "\t[--%s <spherical diffusion time>=%g]\n" , Smooth.name , Smooth.value );
 	printf( "\t[--%s <random center of inversion radius>=%g]\n" , RandomInversion.name , RandomInversion.value );
@@ -66,7 +69,7 @@ void Usage( const char* ex )
 	printf( "\t[--%s]\n" , Orient.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 }
-cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &Orient , &RandomInversion , &RandomSeed , NULL };
+cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &Orient , &RandomInversion , &RandomSeed , &SHDegree , &AdvectionSteps , &AdvectionStepSize , NULL };
 
 
 template< class Real >
@@ -212,6 +215,19 @@ void CMCF( const EmptyHEMesh& mesh , std::vector< Point3D< Real > >& vertices , 
 	if( solver ) delete solver;
 }
 
+template< typename Real >
+void Center( SphericalGeometry::Mesh< Real >& mesh )
+{
+	static const int MAX_ITERATIONS = 1000;
+	if( mesh.normalize( MAX_ITERATIONS , CutOff.value , true , Verbose.set )==MAX_ITERATIONS ) fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations\n" , MAX_ITERATIONS );
+}
+template< unsigned int SHDegree , typename Real >
+void SHCenter( SphericalGeometry::Mesh< Real >& mesh )
+{
+	static const int MAX_ITERATIONS = 1000;
+	if( mesh.template normalizeSH< SHDegree >( MAX_ITERATIONS , AdvectionSteps.value , AdvectionStepSize.value , CutOff.value , true , Verbose.set )==MAX_ITERATIONS ) fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations\n" , MAX_ITERATIONS );
+}
+
 
 template< class Real >
 void Execute( const std::vector< TriangleIndex >& triangles , std::vector< PlyColorVertex< float > >& vertices )
@@ -279,8 +295,24 @@ void Execute( const std::vector< TriangleIndex >& triangles , std::vector< PlyCo
 	if( !NoCenter.set )
 	{
 		Timer t;
+#if 1
+		if( SHDegree.set )
+		{
+			switch( SHDegree.value )
+			{
+			case 1: SHCenter< 1 >( mesh ) ; break;
+			case 2: SHCenter< 2 >( mesh ) ; break;
+			case 3: SHCenter< 3 >( mesh ) ; break;
+			case 4: SHCenter< 4 >( mesh ) ; break;
+			default:
+				fprintf( stderr , "[ERROR] Only spherical harmonics of degree [1,..,4] are supported\n" ) , exit( 0 );
+			};
+		}
+		else Center( mesh );
+#else
 		static const int MAX_ITERATIONS = 1000;
 		if( mesh.normalize( MAX_ITERATIONS , CutOff.value , true , Verbose.set )==MAX_ITERATIONS ) fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations\n" , MAX_ITERATIONS );
+#endif
 		sphericalCoordinates = mesh.vertices;
 		if( Verbose.set ) printf( "Centered: %.2f (s)\n" , t.elapsed() );
 	}
