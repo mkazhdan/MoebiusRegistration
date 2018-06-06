@@ -66,7 +66,7 @@ void Usage( const char* ex )
 	printf( "\t[--%s]\n" , Verbose.name );
 }
 
-cmdLineReadable* params[] = { &In , &Out , &Verbose , &Resolution , &Smooth , &GradientDomain , &CorrelationType , NULL };
+cmdLineReadable* params[] = { &In , &Out , &Verbose , &Resolution , &Smooth , &GradientDomain , &CorrelationType , &Correspondence , NULL };
 
 template< class Real >
 Point3D< Real > NearestPointOnEdge( Point3D< Real > point , const Point3D< Real > edge[2] , Real& b0 , Real& b1 )
