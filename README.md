@@ -31,7 +31,7 @@ This distribution contains code for constructing and registering conformal spher
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>SphereMap</b></font>:
-(1) Computes a conformal parametrization of a water-tight, genus-zero surface to the sphere using Conformalized Mean Curvature Flow <A HREF="http://www.cs.jhu.edu/~misha/MyPapers/SGP12.pdf">[Kazhdan, Solomon, and Ben-Chen, 2012]</A>; (2) cannoically centers the parametrization relative to Moebius inversions; and (3) tessellates the spherical mapping over a regular equirectangular grid.
+(1) Computes a conformal parametrization of a water-tight, genus-zero surface to the sphere using Conformalized Mean Curvature Flow <A HREF="http://www.cs.jhu.edu/~misha/MyPapers/SGP12.pdf">[Kazhdan, Solomon, and Ben-Chen, 2012]</A>; (2) cannoically centers the parametrization relative to Moebius inversions (or, more generally, the low-frequency spherical harmonics); and (3) tessellates the spherical mapping over a regular equirectangular grid.
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input mesh</i>&gt;</dt>
 <dd> This string is the name of the file from which the point set will be read.<br>
