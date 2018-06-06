@@ -48,13 +48,13 @@ cmdLineParameterArray< char* , 2 > In( "in" );
 cmdLineParameter< char* > Out( "out" );
 cmdLineParameter< int > Resolution( "res" , 256 ) , CorrelationType( "cType" , CORRELATE_ROTATION );
 cmdLineParameter< float > Smooth( "smooth" , 5e-4f );
-cmdLineReadable Verbose( "verbose" ) , GradientDomain( "gradientDomain" );
+cmdLineReadable Correspondence( "correspondence" ) , Verbose( "verbose" ) , GradientDomain( "gradientDomain" );
 
 void Usage( const char* ex ) 
 {
 	printf( "Usage %s:\n" , ex );
 	printf( "\t --%s <input source/target>\n" , In.name );
-	printf( "\t[--%s <output parameterization mesh>]\n" , Out.name );
+	printf( "\t[--%s <output mesh>]\n" , Out.name );
 	printf( "\t[--%s <spherical resolution>=%d]\n" , Resolution.name , Resolution.value );
 	printf( "\t[--%s <spherical smoothing>=%g]\n" , Smooth.name , Smooth.value );
 	printf( "\t[--%s <correlation type>=%d]\n" , CorrelationType.name , CorrelationType.value );
@@ -62,6 +62,7 @@ void Usage( const char* ex )
 	printf( "\t\t%d] Reflection\n" , CORRELATE_REFLECTION );
 	printf( "\t\t%d] Rotation + Reflection\n" , CORRELATE_ROTATION | CORRELATE_REFLECTION );
 	printf( "\t[--%s]\n" , GradientDomain.name );
+	printf( "\t[--%s]\n" , Correspondence.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 }
 
@@ -251,44 +252,47 @@ void Execute( void )
 
 	if( hasGeometry && Out.set )
 	{
-		// Re-map the source vertex positions
-#pragma omp parallel for
-		for( int i=0 ; i<sourceMesh.vertices.size() ; i++ )
+		if( Correspondence.set )
 		{
-			Real theta , phi; 
-
-			SphericalGrid< Real >::SetCoordinates( sourceMesh.vertices[i].coords , theta , phi );
-			if( theta<0 ) theta += (Real)( 2. * M_PI );
-
-			Real x = (Real)( (theta * Resolution.value) / (2.*M_PI) );
-			Real y = (Real)( (phi * Resolution.value ) / M_PI );
-			int _x = (int)floor( x ) , _y = (int)floor( y );
-
-			int idx = _x * Resolution.value + _y;
-
-			int tIdx = -1;
-			Real dist = -1;
-			Point3D< Real > b;
-			for( int j=0 ; j<targetCells[idx].size() ; j++ )
+			// Re-map the source vertex positions
+#pragma omp parallel for
+			for( int i=0 ; i<sourceMesh.vertices.size() ; i++ )
 			{
-				Real _b[3];
-				TriangleIndex tri = targetMesh.triangles[ targetCells[idx][j].sourceID ];
-				Point3D< Real > triangle[] = { targetMesh.vertices[ tri[0] ] , targetMesh.vertices[ tri[1] ] , targetMesh.vertices[ tri[2] ] };
-				Point3D< Real > p = NearestPointOnTriangle( sourceMesh.vertices[i] , triangle , _b );
-				Real d2 = Point3D< Real >::SquareNorm( p - sourceMesh.vertices[i] );
-				if( dist<0 || d2<dist )
+				Real theta , phi; 
+
+				SphericalGrid< Real >::SetCoordinates( sourceMesh.vertices[i].coords , theta , phi );
+				if( theta<0 ) theta += (Real)( 2. * M_PI );
+
+				Real x = (Real)( (theta * Resolution.value) / (2.*M_PI) );
+				Real y = (Real)( (phi * Resolution.value ) / M_PI );
+				int _x = (int)floor( x ) , _y = (int)floor( y );
+
+				int idx = _x * Resolution.value + _y;
+
+				int tIdx = -1;
+				Real dist = -1;
+				Point3D< Real > b;
+				for( int j=0 ; j<targetCells[idx].size() ; j++ )
 				{
-					dist = d2;
-					tIdx = targetCells[idx][j].sourceID;
-					b = Point3D< Real >( _b[0] , _b[1] , _b[2] );
+					Real _b[3];
+					TriangleIndex tri = targetMesh.triangles[ targetCells[idx][j].sourceID ];
+					Point3D< Real > triangle[] = { targetMesh.vertices[ tri[0] ] , targetMesh.vertices[ tri[1] ] , targetMesh.vertices[ tri[2] ] };
+					Point3D< Real > p = NearestPointOnTriangle( sourceMesh.vertices[i] , triangle , _b );
+					Real d2 = Point3D< Real >::SquareNorm( p - sourceMesh.vertices[i] );
+					if( dist<0 || d2<dist )
+					{
+						dist = d2;
+						tIdx = targetCells[idx][j].sourceID;
+						b = Point3D< Real >( _b[0] , _b[1] , _b[2] );
+					}
 				}
-			}
-			if( dist<0 ) fprintf( stderr , "[ERROR] Could not find a polygon in cell: %d %d\n" , _x , _y ) , exit( 0 );
-			{
-				TriangleIndex tri = targetMesh.triangles[ tIdx ];
-				sourceVertices[i] = targetVertices[ tri[0] ] * b[0] + targetVertices[ tri[1] ] * b[1] + targetVertices[ tri[2] ] * b[2];
-			}
+				if( dist<0 ) fprintf( stderr , "[ERROR] Could not find a polygon in cell: %d %d\n" , _x , _y ) , exit( 0 );
+				{
+					TriangleIndex tri = targetMesh.triangles[ tIdx ];
+					sourceVertices[i] = targetVertices[ tri[0] ] * b[0] + targetVertices[ tri[1] ] * b[1] + targetVertices[ tri[2] ] * b[2];
+				}
 
+			}
 		}
 		sourceMesh.write( Out.value , sourceVertices , sourceColors );
 	}
