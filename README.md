@@ -19,7 +19,7 @@ This distribution contains code for constructing and registering conformal spher
 <UL>
 <B>Papers</B> <A HREF="http://www.cs.jhu.edu/~misha/MyPapers/SGP12.pdf">[Kazhdan, Solomon, and Ben-Chen, 2012]</A> <A href="http://www.cs.jhu.edu/~misha/MyPapers/SGP18.pdf">[Baden, Crane, and Kazhdan, 2018]</A><br>
 <B>Binaries</B> <A href="MoebiusRegistration.x64.zip">Windows Executables</A> <A href="MoebiuseRegistration.x64.lib.zip">Windows libraries and DLLs</A><br>
-<B>Source Code</B> <A href="MoebiusRegistration.zip">ZIP</A><br>
+<B>Source Code</B> <A href="MoebiusRegistration.zip">ZIP</A> <A HREF="https://github.com/mkazhdan/MoebiusRegistration">GitHub</A><br>
 <B>License</B> <A href="license.txt">BSD</A><br>
 </UL>
 
@@ -66,6 +66,23 @@ The default value for this parameter is 0.1.
 <dt>[<b>--cutOff</b> &lt;<i>Moebius centering cut-off</i>&gt;]</dt>
 <dd> This floating point value specifies the threshold for terminating the Moebius centering iterations.<br>
 The default value for this parameter is 10^(-10).
+</dd>
+
+<dt>[<b>--degree</b> &lt;<i>spherical harmonics degree</i>&gt;]</dt>
+<dd> This integer value specifies the degrees of the spherical harmonics that should be centered out using explicit advection.<BR>
+If this parameter is not specified, the code reverts to centering with respect to Moebius inversions.<BR>
+Only degrees 1, 2, 3, and 4 are supported at this point.
+</dd>
+
+<dt>[<b>--aSteps</b> &lt;<i>advection steps</i>&gt;]</dt>
+<dd> If a spherical harmonic degree is specified, this integer value specifies the number of advection steps to be performed within each centering step.<BR>
+The default value for this parameter is 4.
+</dd>
+
+<dt>[<b>--aStepSize</b> &lt;<i>advection step size</i>&gt;]</dt>
+<dd> If a spherical harmonic degree is specified, this floating point value specifies the size of each advection step.<BR>
+The default value for this parameter is 0.25.<BR>
+<I>If the resulting spherical parameterization exhibits triangle flips, it is likely that the advection step size should be reduced.</I>
 </dd>
 
 <dt>[<b>--res</b> &lt;<i>equirectangular grid resolution</i>&gt;]</dt>
@@ -130,7 +147,7 @@ The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/p
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>Register</b></font>:
-Performs fast spherical correlation to align the rotational component of the Moebius transformation and computes dense point-to-point correspondences between the source and target mesh.
+Performs fast spherical correlation to align the rotational component of the Moebius transformation and outputs the transformed source. (The transformed source is obtained by rotating the parametric positions and, optionally, by replacing the source vertex positions with the corresponding target vertex positions.)
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input source/target</i>&gt;</dt>
 <dd> These pair of strings are the names of the source and target file from which the spherical parameterizations will be read.<br>
@@ -158,6 +175,11 @@ Note that this is only used in the case that the input is in PLY format.
 <dt>[<b>--cType</b> &lt;<i>correlation type</i>&gt;]</dt>
 <dd> This integer value specifies how to perform correlation. A vlaue of <b>1</B> indicates that correlation should only be performed over the orthogonal transformations with determinant 1. A value of <B>2</B> indicates that the correlation should only be performed over the orthogonal transformations with determinant -1. A value of <B>3</B> indicates that the correlation should be performed over all orthogonal transformations.
 The default value for this parameter is 1.
+</dd>
+
+<dt>[<b>--correspondence</b>]</dt>
+<dd> If enabled, the output mesh is defined by using the triangulation of the source and setting the vertex positions to the corresponding positions on the target. Otherwise, the parameteric coordinates of the source are rotated.<BR>
+Note that this is only used in the case that the input is in PLY format.
 </dd>
 
 <dt>[<b>--verbose</b>]</dt>
