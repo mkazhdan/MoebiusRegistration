@@ -41,9 +41,9 @@ DAMAGE.
 #include "Misha/SphericalGeometry.h"
 
 cmdLineParameter< char* > In( "in" ) , Out( "out" ) , OutGrid( "outG" ) , OutTessellation( "outT" );
-cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , RandomSeed( "sRand" , 0 ) , SHDegree( "degree" , 1 ) , AdvectionSteps( "aSteps" , 4 );
-cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , RandomInversion( "randomInversion" , 0.f ) , AdvectionStepSize( "aStepSize" , 0.25f );
-cmdLineReadable Verbose( "verbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , Orient( "orient" );
+cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , RandomSeed( "sRand" , 0 ) , SHDegree( "degree" , 1 ) , AdvectionSteps( "aSteps" , 10 );
+cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , RandomInversion( "randomInversion" , 0.f ) , AdvectionStepSize( "aStepSize" , 0.05f );
+cmdLineReadable Verbose( "verbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , NoOrient( "noOrient" );
 
 void Usage( const char* ex )
 {
@@ -66,10 +66,10 @@ void Usage( const char* ex )
 	printf( "\t[--%s]\n" , NoCenter.name );
 	printf( "\t[--%s]\n" , ASCII.name );
 	printf( "\t[--%s]\n" , Collapse.name );
-	printf( "\t[--%s]\n" , Orient.name );
+	printf( "\t[--%s]\n" , NoOrient.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 }
-cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &Orient , &RandomInversion , &RandomSeed , &SHDegree , &AdvectionSteps , &AdvectionStepSize , NULL };
+cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &RandomInversion , &RandomSeed , &SHDegree , &AdvectionSteps , &AdvectionStepSize , NULL };
 
 
 template< class Real >
@@ -266,7 +266,7 @@ void Execute( const std::vector< TriangleIndex >& triangles , std::vector< PlyCo
 	}
 
 	// Orient the spherical parameterization so that it's outward facing
-	if( Orient.set )
+	if( !NoOrient.set )
 	{
 		Real pArea = 0 , nArea = 0;
 #pragma omp parallel for reduction ( + : pArea , nArea )
@@ -295,24 +295,10 @@ void Execute( const std::vector< TriangleIndex >& triangles , std::vector< PlyCo
 	if( !NoCenter.set )
 	{
 		Timer t;
-#if 1
-		if( SHDegree.set )
-		{
-			switch( SHDegree.value )
-			{
-			case 1: SHCenter< 1 >( mesh ) ; break;
-			case 2: SHCenter< 2 >( mesh ) ; break;
-			case 3: SHCenter< 3 >( mesh ) ; break;
-			case 4: SHCenter< 4 >( mesh ) ; break;
-			default:
-				fprintf( stderr , "[ERROR] Only spherical harmonics of degree [1,..,4] are supported\n" ) , exit( 0 );
-			};
-		}
-		else Center( mesh );
-#else
-		static const int MAX_ITERATIONS = 1000;
-		if( mesh.normalize( MAX_ITERATIONS , CutOff.value , true , Verbose.set )==MAX_ITERATIONS ) fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations\n" , MAX_ITERATIONS );
-#endif
+		Center( mesh );
+		if( SHDegree.value>=2 ) SHCenter< 2 >( mesh );
+		if( SHDegree.value>=3 ) SHCenter< 3 >( mesh );
+		if( SHDegree.value>=4 ) SHCenter< 4 >( mesh );
 		sphericalCoordinates = mesh.vertices;
 		if( Verbose.set ) printf( "Centered: %.2f (s)\n" , t.elapsed() );
 	}
