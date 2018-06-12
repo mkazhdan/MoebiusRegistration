@@ -31,6 +31,7 @@ DAMAGE.
 #include <random>
 #include "Misha/Fourier.h"
 
+#define NEW_CODE
 
 template< class Real >
 Real SphericalGeometry::Area( const Point3D< Real >& v1, const Point3D< Real >& v2 , const Point3D< Real >& v3 )
@@ -140,10 +141,18 @@ SquareMatrix< Real , 3 > SphericalGeometry::Correlate( SphericalGrid< Real >& so
 template< class Real >
 Point3D< Real > SphericalGeometry::SphericalInversion< Real >::operator() ( Point3D< Real > p ) const
 {
+#ifdef NEW_CODE
+	p += center;
+#else // !NEW_CODE
 	p -= center;
+#endif // NEW_CODE
 	p /= Point3D< Real >::SquareNorm( p );
 	p *= 1 - Point3D< Real >::SquareNorm( center );
+#ifdef NEW_CODE
+	p += center;
+#else // !NEW_CODE
 	p -= center;
+#endif // NEW_CODE
 	return p;
 }
 
@@ -413,7 +422,11 @@ SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( void ) const
 		for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) _D(i,j) -= p[i] * p[j];
 		D += _D * masses[t];
 	}
+#ifdef NEW_CODE
+	return D * (Real)2;
+#else // !NEW_CODE
 	return -D * (Real)2;
+#endif // NEW_CODE
 };
 template< class Real >
 SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( SphericalGeometry::FractionalLinearTransformation< Real > flt ) const
@@ -426,7 +439,11 @@ SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( SphericalGeom
 		for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) _D(i,j) -= p[i] * p[j];
 		D += _D * masses[t];
 	}
+#ifdef NEW_CODE
+	return D * (Real)2;
+#else // !NEW_CODE
 	return -D * (Real)2;
+#endif // NEW_CODE
 };
 
 template< class Real >
