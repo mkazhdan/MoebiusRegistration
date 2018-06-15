@@ -1,4 +1,4 @@
-<CENTER><H1>Moebius Registration</H1></CENTER>
+<CENTER><H1>M&ouml;bius Registration</H1></CENTER>
 <CENTER>
 <A HREF="#LINKS">links</A>
 <A HREF="#EXECUTABLE">executables</A>
@@ -9,7 +9,7 @@
 This distribution contains code for constructing and registering conformal spherical parametrizations of water-tight, genus-zero surfaces. Specifically, it provides implementations for:
 <UL>
 <LI>Computing a conformal parametrization over the sphere
-<LI>Centering the parametrization with respect to Moebius inversions
+<LI>Centering the parametrization with respect to M&ouml;bius inversions
 <LI>Tessellating the conformal parametrization to a regular equirectangular grid
 <LI>Performing fast spherical correlation to find the rotation/reflections that best aligning two centered parametrizations
 <LI>Using the registered parameerizations to compute dense correspondences from a source mesh to a target
@@ -31,7 +31,7 @@ This distribution contains code for constructing and registering conformal spher
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>SphereMap</b></font>:
-(1) Computes a conformal parametrization of a water-tight, genus-zero surface to the sphere using Conformalized Mean Curvature Flow <A HREF="http://www.cs.jhu.edu/~misha/MyPapers/SGP12.pdf">[Kazhdan, Solomon, and Ben-Chen, 2012]</A>; (2) cannoically centers the parametrization relative to Moebius inversions (or, more generally, the low-frequency spherical harmonics); and (3) tessellates the spherical mapping over a regular equirectangular grid.
+(1) Computes a conformal parametrization of a water-tight, genus-zero surface to the sphere using Conformalized Mean Curvature Flow <A HREF="http://www.cs.jhu.edu/~misha/MyPapers/SGP12.pdf">[Kazhdan, Solomon, and Ben-Chen, 2012]</A>; (2) cannonically centers the parametrization relative to M&ouml;bius inversions (or, more generally, the low-frequency spherical harmonics); and (3) tessellates the spherical mapping over a regular equirectangular grid.
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input mesh</i>&gt;</dt>
 <dd> This string is the name of the file from which the point set will be read.<br>
@@ -63,14 +63,14 @@ The default value for this parameter is 100.
 The default value for this parameter is 0.1.
 </dd>
 
-<dt>[<b>--cutOff</b> &lt;<i>Moebius centering cut-off</i>&gt;]</dt>
-<dd> This floating point value specifies the threshold for terminating the Moebius centering iterations.<br>
+<dt>[<b>--cutOff</b> &lt;<i>M&ouml;bius centering cut-off</i>&gt;]</dt>
+<dd> This floating point value specifies the threshold for terminating the M&ouml;bius centering iterations.<br>
 The default value for this parameter is 10^(-10).
 </dd>
 
 <dt>[<b>--degree</b> &lt;<i>spherical harmonics degree</i>&gt;]</dt>
 <dd> This integer value specifies the degrees of the spherical harmonics that should be centered out using explicit advection.<BR>
-If this parameter is not specified, the code reverts to centering with respect to Moebius inversions.<BR>
+If this parameter is not specified, the code reverts to centering with respect to M&ouml;bius inversions.<BR>
 Only degrees 1, 2, 3, and 4 are supported at this point.
 </dd>
 
@@ -100,7 +100,7 @@ The default value for this parameter is 0.0005.
 </dd>
 
 <dt>[<b>--noCenter</b>]</dt>
-<dd> If enabled, no Moebius centering is performed after computing the conformal spherical parametrization.
+<dd> If enabled, no M&ouml;bius centering is performed after computing the conformal spherical parametrization.
 </dd>
 
 <dt>[<b>--collapse</b>]</dt>
@@ -147,7 +147,7 @@ The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/p
 <DETAILS>
 <SUMMARY>
 <font size="+1"><b>Register</b></font>:
-Performs fast spherical correlation to align the rotational component of the Moebius transformation and outputs the transformed source. (The transformed source is obtained by rotating the parametric positions and, optionally, by replacing the source vertex positions with the corresponding target vertex positions.)
+Performs fast spherical correlation to align the rotational component of the M&ouml;bius transformation and outputs the transformed source. (The transformed source is obtained by rotating the parametric positions and, optionally, by replacing the source vertex positions with the corresponding target vertex positions.)
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input source/target</i>&gt;</dt>
 <dd> These pair of strings are the names of the source and target file from which the spherical parameterizations will be read.<br>
@@ -195,7 +195,7 @@ Note that this is only used in the case that the input is in PLY format.
 <HR>
 <A NAME="NOTES"><B>NOTES</B></A><br>
 <UL>
-<LI> The implementation of this code relies on the <A HREF="http://eigen.tuxfamily.org/">Eigen</A>, <A HREF="https://www.cs.dartmouth.edu/~geelong/soft/">SOFT</A>, and <A HREF="http://www.fftw.org/">FFTW</A>. The source for Eigen and SOFT are included and should compile uncer both Windows and Linux. For the FFTW, Windows .lib and .dll files can be found <A href="MoebiuseRegistration.x64.lib.zip">here</A>.
+<LI> The implementation of this code relies on the <A HREF="http://eigen.tuxfamily.org/">Eigen</A>, <A HREF="https://www.cs.dartmouth.edu/~geelong/soft/">SOFT</A>, and <A HREF="http://www.fftw.org/">FFTW</A> libraries. The source for Eigen and SOFT are included and should compile uncer both Windows and Linux. For the FFTW, Windows .lib and .dll files can be found <A href="MoebiuseRegistration.x64.lib.zip">here</A>.
 </UL>
 
 

@@ -63,12 +63,13 @@ int main( int argc , char* argv[] )
 		return EXIT_FAILURE;
 	}
 
-	SphericalGeometry::Mesh< float > mesh;
-	std::vector< Point3D< float > > vertices , colors;
-	mesh.read( In.value , vertices , colors );
+	int plyType;
+	std::vector< PlyParametrizedColorVertex< float > > vertices;
+	std::vector< std::vector< int > > polygons;
+	PlyReadPolygons( In.value , vertices , polygons , PlyParametrizedColorVertex< float >::WriteProperties , NULL , PlyParametrizedColorVertex< float >::WriteComponents , plyType , NULL , 0 );
 
 	std::vector< PlyColorVertex< float > > _vertices( vertices.size() );
-	for( int i=0 ; i<_vertices.size() ; i++ ) _vertices[i].point =  mesh.vertices[i] , _vertices[i].color = colors[i];
-	if( Out.set ) PlyWriteTriangles( Out.value , _vertices , mesh.triangles , PlyColorVertex< float >::WriteProperties , PlyColorVertex< float >::WriteComponents , PLY_BINARY_NATIVE );
+	for( int i=0 ; i<_vertices.size() ; i++ ) _vertices[i].point =  vertices[i].param , _vertices[i].color = vertices[i].color;
+	if( Out.set ) PlyWritePolygons( Out.value , _vertices , polygons , PlyColorVertex< float >::WriteProperties , PlyColorVertex< float >::WriteComponents , PLY_BINARY_NATIVE );
 	return EXIT_SUCCESS;
 }
