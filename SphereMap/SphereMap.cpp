@@ -41,8 +41,8 @@ DAMAGE.
 #include "Misha/SphericalGeometry.h"
 
 cmdLineParameter< char* > In( "in" ) , Out( "out" ) , OutGrid( "outG" ) , OutTessellation( "outT" );
-cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , RandomSeed( "sRand" , 0 ) , SHDegree( "degree" , 1 ) , AdvectionSteps( "aSteps" , 10 );
-cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , RandomInversion( "randomInversion" , 0.f ) , AdvectionStepSize( "aStepSize" , 0.05f );
+cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , SHDegree( "degree" , 1 ) , AdvectionSteps( "aSteps" , 10 );
+cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , AdvectionStepSize( "aStepSize" , 0.05f );
 cmdLineReadable Verbose( "verbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , NoOrient( "noOrient" );
 
 void Usage( const char* ex )
@@ -60,8 +60,6 @@ void Usage( const char* ex )
 	printf( "\t[--%s <advection step size>=%f]\n" , AdvectionStepSize.name , AdvectionStepSize.value );
 	printf( "\t[--%s <spherical resolution>=%d]\n" , Resolution.name , Resolution.value );
 	printf( "\t[--%s <spherical diffusion time>=%g]\n" , Smooth.name , Smooth.value );
-	printf( "\t[--%s <random center of inversion radius>=%g]\n" , RandomInversion.name , RandomInversion.value );
-	printf( "\t[--%s <random seed>=%d]\n" , RandomSeed.name , RandomSeed.value );
 	printf( "\t[--%s]\n" , Randomize.name );
 	printf( "\t[--%s]\n" , NoCenter.name );
 	printf( "\t[--%s]\n" , ASCII.name );
@@ -69,7 +67,7 @@ void Usage( const char* ex )
 	printf( "\t[--%s]\n" , NoOrient.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 }
-cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &RandomInversion , &RandomSeed , &SHDegree , &AdvectionSteps , &AdvectionStepSize , NULL };
+cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &SHDegree , &AdvectionSteps , &AdvectionStepSize , NULL };
 
 
 template< class Real >
@@ -256,15 +254,6 @@ void Execute( const std::vector< TriangleIndex >& triangles , std::vector< PlyCo
 		for( int i=0 ; i<sphericalCoordinates.size() ; i++ ) sphericalCoordinates[i] /= Length( sphericalCoordinates[i] );
 	}
 
-	if( RandomInversion.value>0 && RandomInversion.value<1 )
-	{
-		Point3D< Real > c = RandomSpherePoint< Real >() * RandomInversion.value;
-		if( Verbose.set ) std::cout << "Center of inversion:  " << c << std::endl;
-		SphericalGeometry::SphericalInversion< Real > si( c );
-#pragma omp parallel for
-		for( int i=0 ; i<sphericalCoordinates.size() ; i++ ) sphericalCoordinates[i] = si( sphericalCoordinates[i] );
-	}
-
 	// Orient the spherical parameterization so that it's outward facing
 	if( !NoOrient.set )
 	{
@@ -342,12 +331,12 @@ void Execute( const std::vector< TriangleIndex >& triangles , std::vector< PlyCo
 
 		SphericalGrid< Real > sGrid;
 		sGrid.resize( Resolution.value );
-		tessellator.createSGrid( sGrid , Smooth.value , false , false );
+		tessellator.createSGrid( sGrid , Smooth.value );
 
 		if( OutGrid.set )
 		{
 			char* ext = GetFileExtension( OutGrid.value );
-			if     ( !strcasecmp( ext , "ply" ) ) tessellator.writeGrid( OutGrid.value , Smooth.value , false , false , []( Real v ){ return v<0 ? (Real)-sqrt(-v) : (Real)sqrt(v); } , !ASCII.set );
+			if     ( !strcasecmp( ext , "ply" ) ) tessellator.writeGrid( OutGrid.value , Smooth.value , []( Real v ){ return v<0 ? (Real)-sqrt(-v) : (Real)sqrt(v); } , !ASCII.set );
 			else if( !strcasecmp( ext , "sgrid" ) )
 			{
 				SphericalGrid< float > _sGrid;
@@ -369,7 +358,6 @@ int main( int argc , char* argv[] )
 		Usage( argv[0] );
 		return EXIT_FAILURE;
 	}
-	srand( RandomSeed.value );
 	int fileType;
 	std::vector< TriangleIndex > triangles;
 	std::vector< PlyColorVertex< float > > vertices;

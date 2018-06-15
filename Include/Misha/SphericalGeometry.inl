@@ -873,7 +873,7 @@ void SphericalGeometry::Tessellation< Real >::_init( const SphericalGeometry::Me
 }
 
 template< class Real >
-void SphericalGeometry::Tessellation< Real >::createSGrid( SphericalGrid< Real >& sGrid , Real smooth , bool noConstant , bool logSpace ) const
+void SphericalGeometry::Tessellation< Real >::createSGrid( SphericalGrid< Real >& sGrid , Real smooth ) const
 {
 	if( sGrid.resolution()!=_resolution ) 
 	{
@@ -893,17 +893,15 @@ void SphericalGeometry::Tessellation< Real >::createSGrid( SphericalGrid< Real >
 		Real phi[] = { Phi(y-0.5) , Phi(y+0.5) };
 		Real area = ( theta[1] - theta[0] ) * ( -cos(phi[1]) + cos(phi[0]) );
 		sGrid(x,y) = sqrt( sGrid(x,y) / area );
-		if( logSpace ) sGrid( x, y ) = log( sGrid(x,y) );
 	}
 
-	if( noConstant || smooth>0 )
+	if( smooth>0 )
 	{
 		HarmonicTransform< Real > hForm; 
 		FourierKeyS2< Real > key;
 
 		hForm.ForwardFourier( sGrid , key );
-		if( noConstant ) key(0,0) = 0;
-		if( smooth>0 ) for( int i=0 ; i<key.bandWidth() ; i++ ) for( int j=0 ; j<=i ; j++ ) key(i,j) *= exp( -smooth * i * ( (Real)(i+1) ) * 1. );
+		for( int i=0 ; i<key.bandWidth() ; i++ ) for( int j=0 ; j<=i ; j++ ) key(i,j) *= exp( -smooth * i * ( (Real)(i+1) ) * 1. );
 		hForm.InverseFourier( key , sGrid );
 	}
 }
@@ -1033,7 +1031,7 @@ void SphericalGeometry::Tessellation< Real >::write( const char* fileName , cons
 
 template< class Real >
 template< typename F >
-void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , Real smooth , bool noConstant , bool logSpace , F f , bool binary ) const
+void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , Real smooth , F f , bool binary ) const
 {
 	std::vector< PlyColorVertex< float > > v( _resolution*(_resolution-1)+2 );
 	std::vector< std::vector< int > > polygons;
@@ -1098,7 +1096,7 @@ void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , 
 	}
 
 	SphericalGrid< Real > sGrid( _resolution );
-	createSGrid( sGrid , smooth , noConstant , logSpace );
+	createSGrid( sGrid , smooth );
 	std::vector< Real > values( v.size() );
 	for( int i=0 ; i<values.size() ; i++ )
 	{

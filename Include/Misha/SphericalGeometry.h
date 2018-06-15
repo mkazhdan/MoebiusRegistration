@@ -164,7 +164,7 @@ namespace SphericalGeometry
 		Tessellation( const Mesh< Real >& mesh , int resolution , bool verbose ){ _init( mesh , (std::vector< char >*)NULL , resolution , verbose ); }
 		template< class VertexData > Tessellation( const Mesh< Real >& mesh , std::vector< VertexData >& vData , int resolution , bool verbose ){ _init( mesh , &vData , resolution , verbose ); }
 
-		void createSGrid( SphericalGrid< Real >& sGrid , Real smoothValue , bool noConstant=false , bool logSpace=false ) const;
+		void createSGrid( SphericalGrid< Real >& sGrid , Real smoothValue ) const;
 
 		const std::vector< Polygon< Real > >& polygons( void ) const { return _polygons; }
 		const std::vector< Point3D< Real > >& vertices( void ) const { return _vertices; }
@@ -176,7 +176,7 @@ namespace SphericalGeometry
 		void write( const char* fileName , const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& colors , bool binary=true ) const;
 
 		template< typename F >
-		void writeGrid( const char* fileName , Real smooth , bool noConstant=false , bool logSpace=false , F f=[]( Real v ){ return v; } , bool binary=true ) const;
+		void writeGrid( const char* fileName , Real smooth , F f=[]( Real v ){ return v; } , bool binary=true ) const;
 	};
 
 	template< class Real >

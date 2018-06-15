@@ -204,7 +204,7 @@ void Execute( void )
 			SphericalGeometry::Tessellation< Real > targetTessellator( targetMesh , verticesAndColors , Resolution.value , Verbose.set );
 			targetVertices.resize( verticesAndColors.size() ) , targetColors.resize( verticesAndColors.size() );
 			for( int i=0 ; i<verticesAndColors.size() ; i++ ) targetVertices[i] = verticesAndColors[i].vertex , targetColors[i] = verticesAndColors[i].color;
-			targetTessellator.createSGrid( targetGrid , Smooth.value , false , false );
+			targetTessellator.createSGrid( targetGrid , Smooth.value );
 			const std::vector< SphericalGeometry::Polygon< Real > > p = targetTessellator.polygons();
 			for( int i=0 ; i<targetTessellator.polygons().size() ; i++ ) targetCells[ p[i].theta*Resolution.value + p[i].phi ].push_back( p[i] );
 
@@ -212,7 +212,7 @@ void Execute( void )
 			verticesAndColors.resize( sourceVertices.size() );
 			for( int i=0 ; i<sourceVertices.size() ; i++ ) verticesAndColors[i].vertex = sourceVertices[i] , verticesAndColors[i].color = sourceColors[i];
 			SphericalGeometry::Tessellation< Real > sourceTessellator( sourceMesh , verticesAndColors , Resolution.value , Verbose.set );
-			sourceTessellator.createSGrid( sourceGrid , Smooth.value , false , false );
+			sourceTessellator.createSGrid( sourceGrid , Smooth.value );
 
 			if( Verbose.set ) printf( "Tessellated: %.2f(s)\n" , t.elapsed() );
 		}
