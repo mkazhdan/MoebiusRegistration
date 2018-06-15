@@ -210,6 +210,19 @@ template<class Real>
 Real* SphericalGrid<Real>::operator[] ( int i ){ return &values[i*res]; }
 template<class Real>
 Real SphericalGrid<Real>::squareNorm(void) const { return Dot(*this,*this); }
+template< class Real >
+Real SphericalGrid< Real >::average( void ) const
+{
+	double d=0 , c=1;
+	for( int i=0 ; i<res ; i++ )
+	{
+		double t1 = cos( PI * (2.0*i+2) / (2.0*res) );
+		double t2 = (c-t1) / (2*res);
+		c = t1;
+		for( int j=0 ; j<res ; j++ ) d += values[i*res+j] * t2;
+	}
+	return (Real)d;
+}
 template<class Real>
 Real SphericalGrid<Real>::SquareDifference(const SphericalGrid& g1,const SphericalGrid& g2){return g1.squareNorm()+g2.squareNorm()-2*Dot(g1,g2);}
 template<class Real>

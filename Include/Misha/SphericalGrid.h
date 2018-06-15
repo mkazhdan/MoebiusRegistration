@@ -70,6 +70,9 @@ public:
 	// Returns the square of the L2-norm of the array elements
 	Real squareNorm(void) const;
 
+	// Returns the average
+	Real average( void ) const;
+
 	// Reads in an array from the specified file
 	int read(const char* fileName);
 	int read(FILE* fp);

@@ -616,22 +616,22 @@ void SphericalGeometry::Polygon< Real >::_split( Point3D< Real > pNormal , Real 
 	{
 		for( int i=0 ; i<_vertices.size() ; i++ ) back._vertices.push_back( _vertices[i] );
 		back.mass = mass;
-if( back.mass!=back.mass || front.mass!=front.mass )
-{
-	printf( "1: %g %g %g\n" , back.mass , front.mass , mass );
-	exit( 0 );
-}
+		if( back.mass!=back.mass || front.mass!=front.mass )
+		{
+			printf( "1: %g %g %g\n" , back.mass , front.mass , mass );
+			exit( 0 );
+		}
 		return;
 	}
 	if( !backSet )
 	{
 		for( int i=0 ; i<_vertices.size() ; i++ ) front._vertices.push_back( _vertices[i] );
 		front.mass = mass;
-if( back.mass!=back.mass || front.mass!=front.mass )
-{
-	printf( "2: %g %g %g\n" , back.mass , front.mass , mass );
-	exit( 0 );
-}
+		if( back.mass!=back.mass || front.mass!=front.mass )
+		{
+			printf( "2: %g %g %g\n" , back.mass , front.mass , mass );
+			exit( 0 );
+		}
 		return;
 	}
 	frontSet = backSet = false;
@@ -669,23 +669,23 @@ if( back.mass!=back.mass || front.mass!=front.mass )
 	if( !backSet ) back._vertices.resize( 0 );
 	if( !frontSet ) front._vertices.resize( 0 );
 	Real a[] = { back.area( vertices ) , front.area( vertices ) };
-if( a[0]!=a[0] || a[1]!=a[1] )
-{
-	printf( "%g %g\n" , a[0] , a[1] );
-	printf( "%d %d\n" , (int)back.size() , (int)front.size() );
-	for( int i=0 ; i< back.size() ; i++ ) printf( "B[%d] %g %g %g\n" , i , vertices[ back[i]][0] , vertices[ back[i]][1] , vertices[ back[i]][2] );
-	for( int i=0 ; i<front.size() ; i++ ) printf( "F[%d] %g %g %g\n" , i , vertices[ front[i]][0] , vertices[ front[i]][1] , vertices[ front[i]][2] );
-	exit( 0 );
-}
+	if( a[0]!=a[0] || a[1]!=a[1] )
+	{
+		printf( "%g %g\n" , a[0] , a[1] );
+		printf( "%d %d\n" , (int)back.size() , (int)front.size() );
+		for( int i=0 ; i< back.size() ; i++ ) printf( "B[%d] %g %g %g\n" , i , vertices[ back[i]][0] , vertices[ back[i]][1] , vertices[ back[i]][2] );
+		for( int i=0 ; i<front.size() ; i++ ) printf( "F[%d] %g %g %g\n" , i , vertices[ front[i]][0] , vertices[ front[i]][1] , vertices[ front[i]][2] );
+		exit( 0 );
+	}
 	Real _a = a[0] + a[1];
 	if( _a ) a[0] /= _a , a[1] /= _a;
 	else a[0] = a[1] = (Real)1./2;
 	back.mass = mass * a[0] , front.mass = mass * a[1];
-if( back.mass!=back.mass || front.mass!=front.mass )
-{
-	printf( "%g %g <- %g %g %g\n" , back.mass , front.mass , mass , a[0] , a[1] );
-	exit( 0 );
-}
+	if( back.mass!=back.mass || front.mass!=front.mass )
+	{
+		printf( "%g %g <- %g %g %g\n" , back.mass , front.mass , mass , a[0] , a[1] );
+		exit( 0 );
+	}
 }
 template< class Real >
 double SphericalGeometry::Polygon< Real >::area( const std::vector< Point3D< Real > >& vertices ) const
@@ -1030,40 +1030,55 @@ void SphericalGeometry::Tessellation< Real >::write( const char* fileName , cons
 }
 
 template< class Real >
-template< typename F >
-void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , Real smooth , F f , bool binary ) const
+template< typename PointScaleFunction >
+void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , Real smooth , PointScaleFunction psFunction , bool binary ) const
 {
-	std::vector< PlyColorVertex< float > > v( _resolution*(_resolution-1)+2 );
+	SphericalGrid< Real > sGrid( _resolution );
+	createSGrid( sGrid , smooth );
+
+	Real max = 0;
+	for( int i=0 ; i<_resolution ; i++ ) for( int j=0 ; j<_resolution ; j++ ) max = std::max< Real >( max , (Real)fabs( sGrid(i,j) ) );
+
+	WriteGrid( fileName , sGrid , psFunction , binary );
+}
+
+
+template< class Real >
+template< typename PointScaleFunction >
+void SphericalGeometry::Tessellation< Real >::WriteGrid( const char* fileName , const SphericalGrid< Real >& sGrid , PointScaleFunction psFunction , bool binary )
+{
+	int res = sGrid.resolution();
+	std::vector< PlyColorVertex< float > > v( res*(res-1)+2 );
 	std::vector< std::vector< int > > polygons;
 
 	auto Index = [&]( int i , int j )
 	{
-		i %= _resolution;
+		i %= res;
 		if( j==0 ) return 0;
-		else if( j==_resolution ) return _resolution*(_resolution-1)+1;
-		else return 1 + (j-1)*_resolution+i;
+		else if( j==res ) return res*(res-1)+1;
+		else return 1 + (j-1)*res+i;
 	};
 	auto Position = [&]( int i , int j )
 	{
-		Real theta = (2.*M_PI*i)/_resolution;
-		Real phi = (PI*j)/_resolution;
+		Real theta = (2.*M_PI*i)/res;
+		Real phi = (PI*j)/res;
 		Point3D< Real > p;
 		SphericalGrid< Real >::SetCoordinates( theta , phi , &p[0] );
 		return p;
 	};
 	auto Color = []( Real value )
 	{
-		Point3D< Real > blue( 0 , 0 , 1 ) , red( 1 , 0 , 0 ) , gray( 0.5 , 0.5 , 0.5 );
+		Point3D< Real > blue( 0 , 0 , 255 ) , red( 255 , 0 , 0 ) , gray( 128 , 128 , 128 );
 		value = std::max< Real >( -1 , std::min< Real >( value , 1 ) );
 		if( value<0 ) return - blue * value + gray * ( 1 + value );
 		else          return    red * value + gray * ( 1 - value );
 	};
 
-	for( int i=0 ; i<_resolution ; i++ ) for( int j=0 ; j<=_resolution ; j++ ) v[ Index(i,j) ].point = Position( i , j );
+	for( int i=0 ; i<res ; i++ ) for( int j=0 ; j<=res ; j++ ) v[ Index(i,j) ].point = Position( i , j );
 	// North triangles
 	{
 		int j=0;
-		for( int i=0 ; i<_resolution ; i++ )
+		for( int i=0 ; i<res ; i++ )
 		{
 			std::vector< int > triangle(3);
 			triangle[0] = Index(0,j);
@@ -1074,8 +1089,8 @@ void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , 
 	}
 	// South triangles
 	{
-		int j=_resolution;
-		for( int i=0 ; i<_resolution ; i++ )
+		int j=res;
+		for( int i=0 ; i<res ; i++ )
 		{
 			std::vector< int > triangle(3);
 			triangle[0] = Index(0,j);
@@ -1085,7 +1100,7 @@ void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , 
 		}
 	}
 	// Interior quads
-	for( int j=1 ; j<_resolution-1 ; j++ ) for( int i=0 ; i<_resolution ; i++ )
+	for( int j=1 ; j<res-1 ; j++ ) for( int i=0 ; i<res ; i++ )
 	{
 		std::vector< int > quad(4);
 		quad[0] = Index(i,j);
@@ -1095,8 +1110,6 @@ void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , 
 		polygons.push_back( quad );
 	}
 
-	SphericalGrid< Real > sGrid( _resolution );
-	createSGrid( sGrid , smooth );
 	std::vector< Real > values( v.size() );
 	for( int i=0 ; i<values.size() ; i++ )
 	{
@@ -1105,14 +1118,11 @@ void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , 
 		sGrid.setCoordinates( &p[0] , x , y );
 		values[i] = sGrid(x,y);
 	}
-	Real max = 0;
-	for( int i=0 ; i<values.size() ; i++ ) max = std::max< Real >( max , (Real)fabs( values[i] ) );
-	for( int i=0 ; i<values.size() ; i++ ) values[i] = (Real)f( fabs(values[i]/max) ) * ( values[i]>0 ? 1 : -1 );
 
 	for( int i=0 ; i<v.size() ; i++ )
 	{
-		v[i].point *= (float)fabs( values[i] );
-		v[i].color = Point3D< float >( Color( values[i] ) ) * 255.f;
+		v[i].point *= (float)psFunction( values[i] );
+		v[i].color = Point3D< float >( Color( values[i] ) );
 	}
 
 	PlyWritePolygons( fileName , v , polygons , PlyColorVertex< float >::WriteProperties , PlyColorVertex< float >::WriteComponents , PLY_ASCII , NULL , 0 );

@@ -175,8 +175,11 @@ namespace SphericalGeometry
 		void write( const char* fileName , bool binary=true ) const;
 		void write( const char* fileName , const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& colors , bool binary=true ) const;
 
-		template< typename F >
-		void writeGrid( const char* fileName , Real smooth , F f=[]( Real v ){ return v; } , bool binary=true ) const;
+		template< typename PointScaleFunction >
+		void writeGrid( const char* fileName , Real smooth , PointScaleFunction f=[]( Real v ){ return v; } , bool binary=true ) const;
+
+		template< typename PointScaleFunction >
+		static void WriteGrid( const char* fileName , const SphericalGrid< Real >& sGrid , PointScaleFunction f=[]( Real v ){ return v; } , bool binary=true );
 	};
 
 	template< class Real >
