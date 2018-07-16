@@ -100,9 +100,11 @@ namespace SphericalGeometry
 		double area( int t , FractionalLinearTransformation< Real > flt ) const;
 		Point3D< Real > center( int t ) const;
 		Point3D< Real > center( int t , FractionalLinearTransformation< Real > flt ) const;
+		Point3D< Real > center( int t , SphericalInversion< Real > inv ) const;
 		Real constant( void ) const;
 		Point3D< Real > center( void ) const;
 		Point3D< Real > center( FractionalLinearTransformation< Real > flt ) const;
+		Point3D< Real > center( SphericalInversion< Real > inv ) const;
 		SquareMatrix< Real , 3 > dCenter( void ) const;
 		SquareMatrix< Real , 3 > dCenter( FractionalLinearTransformation< Real > flt ) const;
 
@@ -115,14 +117,52 @@ namespace SphericalGeometry
 
 		void makeUnitMass( void );
 
+		struct CenterToInversion
+		{
+			virtual SphericalInversion< Real > operator()( const Mesh& mesh , Point3D< Real > c ) const { return SphericalInversion< Real >( c ); }
+		};
+		struct GSSCenterToInversion : public CenterToInversion
+		{
+			Real tolerance , maxNorm;
+			GSSCenterToInversion( Real t , Real mn=(Real)0.99 ) : tolerance(t) , maxNorm(mn) {}
+			SphericalInversion< Real > operator()( const Mesh& mesh , Point3D< Real > c ) const
+			{
+				Real len = (Real)Length(c);
+				if( len>=maxNorm ) c *= maxNorm / len;
+				_NormalizationFunctor< Real > nf( mesh , c );
+				return SphericalInversion< Real >( c * GoldenSectionSearch( nf , (Real)0 , (Real)1 , 1e-6/len ).second );
+			}
+		};
+		struct PoincareCenterToInversion : public CenterToInversion
+		{
+			Real maxNorm;
+			PoincareCenterToInversion( Real mn=(Real)2 ) : maxNorm(mn) {}
+			SphericalInversion< Real > operator()( const Mesh& mesh , Point3D< Real > c ) const
+			{
+				Real len = (Real)Length(c);
+				c /= len;
+				len = std::min< Real >( len , maxNorm );
+				return SphericalInversion< Real >( c * tanh(len) );
+			}
+		};
+
 		FractionalLinearTransformation< Real > normalizer( int iters , double cutOff , bool gaussNewton , bool verbose=false ) const;
-		int normalize( int iters , double cutOff , bool gaussNewton , bool verbose=false );
+		int normalize( int iters , double cutOff , bool gaussNewton , const CenterToInversion& c2i=TrivialCenterToInversion() , bool verbose=false );
+
 		template< unsigned int SHDegree >
 		int normalizeSH( int iters , int advectionSteps , Real advectionStepSize , double cutOff , bool gaussNewton , bool verbose=false );
 
 		static Point3D< Real > SphericalInvert( Point3D< Real > p , Point3D< Real > c );
 	protected:
 		void _normalize( bool verbose );
+		template< typename Real >
+		struct _NormalizationFunctor
+		{
+			const SphericalGeometry::Mesh< Real >& mesh;
+			Point3D< Real > dir;
+			_NormalizationFunctor( const SphericalGeometry::Mesh< Real >& m , Point3D< Real > d ) : mesh(m) , dir(d) {}
+			Real operator()( Real s ) const { return Point3D< Real >::SquareNorm( mesh.center( dir*s ) ); }
+		};
 	};
 
 	template< class Real >

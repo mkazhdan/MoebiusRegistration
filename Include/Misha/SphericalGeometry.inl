@@ -330,6 +330,13 @@ Point3D< Real > SphericalGeometry::Mesh< Real >::center( int t , FractionalLinea
 	return c / Length( c );
 }
 template< class Real >
+Point3D< Real > SphericalGeometry::Mesh< Real >::center( int t , SphericalInversion< Real > inv ) const
+{
+	Point3D< Real > v[3] = { inv( vertices[ triangles[t][0] ] ) , inv( vertices[ triangles[t][1] ] ) , inv( vertices[ triangles[t][2] ] ) };
+	Point3D< Real > c = ( v[0] + v[1] + v[2] ) / (Real)3.;
+	return c / Length( c );
+}
+template< class Real >
 Real SphericalGeometry::Mesh< Real >::constant( void ) const
 {
 	Real c = 0;
@@ -345,9 +352,13 @@ Point3D< Real > SphericalGeometry::Mesh< Real >::center( void ) const
 	// => ( \sum_T (p_T) * (p_T)^T * |T| ) v = \sum_T (p_T) * f(p_T) * |T|
 	// Noting that the integral of p * p_T over the sphere is 4*Pi/3 * Id., this gives:
 	//    v = 3 / (4*PI) * \sum_T (p_T) * f(p_T) * |T|
-	Point3D< Real > c;
-	for( int t=0 ; t<triangles.size() ; t++ ) c += center(t) * masses[t]; // = p * ( mA / sA ) * sA;
-	return c;
+	Real c0=0 , c1=0 , c2=0;
+	for( int t=0 ; t<triangles.size() ; t++ )
+	{
+		Point3D< Real > c = center(t) * masses[t]; // = p * ( mA / sA ) * sA;
+		c0 += c[0] , c1 += c[1] , c2 += c[2];
+	}
+	return Point3D< Real >( c0 , c1 , c2 );
 }
 template< class Real >
 Point3D< Real > SphericalGeometry::Mesh< Real >::center( SphericalGeometry::FractionalLinearTransformation< Real > flt ) const
@@ -356,7 +367,18 @@ Point3D< Real > SphericalGeometry::Mesh< Real >::center( SphericalGeometry::Frac
 	for( int t=0 ; t<triangles.size() ; t++ ) c += center( t , flt ) * masses[t];
 	return c;
 }
-
+template< class Real >
+Point3D< Real > SphericalGeometry::Mesh< Real >::center( SphericalGeometry::SphericalInversion< Real > inv ) const
+{
+	Real c0=0 , c1=0 , c2=0;
+#pragma omp parallel for reduction( + : c0 , c1 , c2 )
+	for( int t=0 ; t<triangles.size() ; t++ )
+	{
+		Point3D< Real > c = center( t , inv ) * masses[t];
+		c0 += c[0] , c1 += c[1] , c2 += c[2];
+	}
+	return Point3D< Real >( c0 , c1 , c2 );
+}
 template< class Real >
 template< unsigned int SHDegree >
 Point< Real , SphericalHarmonics::Dimension< SHDegree >() > SphericalGeometry::Mesh< Real >::centerSH( void ) const
@@ -488,8 +510,9 @@ SphericalGeometry::FractionalLinearTransformation< Real > SphericalGeometry::Mes
 	}
 	return flt;
 }
+
 template< class Real >
-int SphericalGeometry::Mesh< Real >::normalize( int iters , double cutOff , bool gaussNewton , bool verbose )
+int SphericalGeometry::Mesh< Real >::normalize( int iters , double cutOff , bool gaussNewton , const CenterToInversion& c2i , bool verbose )
 {
 	for( int i=0 ; i<iters ; i++ )
 	{
@@ -503,7 +526,7 @@ int SphericalGeometry::Mesh< Real >::normalize( int iters , double cutOff , bool
 			c = - D2 * ( D * c );
 		}
 		else c = - D * c * 2;
-		SphericalInversion< Real > inv( c );
+		SphericalInversion< Real > inv = c2i( *this , c );
 #pragma omp parallel for
 		for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = inv( vertices[i] );
 	}

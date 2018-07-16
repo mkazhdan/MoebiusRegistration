@@ -44,6 +44,8 @@ cmdLineParameter< char* > In( "in" ) , Out( "out" ) , OutGrid( "outG" ) , OutTes
 cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , SHDegree( "degree" , 1 ) , AdvectionSteps( "aSteps" , 10 );
 cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , AdvectionStepSize( "aStepSize" , 0.05f );
 cmdLineReadable Verbose( "verbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , NoOrient( "noOrient" );
+cmdLineParameter< int > CenterToInversion( "c2i" , 2 );
+cmdLineParameter< float > GSSTolerance( "gssTolerance" , (float)1e-6 ) , PoincareMaxNorm( "poincareMaxNorm" , 2.f );
 
 void Usage( const char* ex )
 {
@@ -60,6 +62,12 @@ void Usage( const char* ex )
 	printf( "\t[--%s <advection step size>=%f]\n" , AdvectionStepSize.name , AdvectionStepSize.value );
 	printf( "\t[--%s <spherical resolution>=%d]\n" , Resolution.name , Resolution.value );
 	printf( "\t[--%s <spherical diffusion time>=%g]\n" , Smooth.name , Smooth.value );
+	printf( "\t[--%s <center to inversion type>=%d]\n" , CenterToInversion.name , CenterToInversion.value );
+	printf( "\t\t0] Trivial\n" );
+	printf( "\t\t1] Golden section search\n" );
+	printf( "\t\t2] Poincare\n" );
+	printf( "\t[--%s <golden section search tolerance>=%e]\n" , GSSTolerance.name , GSSTolerance.value );
+	printf( "\t[--%s <Poincare max norm>=%e]\n" , PoincareMaxNorm.name , PoincareMaxNorm.value );
 	printf( "\t[--%s]\n" , Randomize.name );
 	printf( "\t[--%s]\n" , NoCenter.name );
 	printf( "\t[--%s]\n" , ASCII.name );
@@ -67,7 +75,7 @@ void Usage( const char* ex )
 	printf( "\t[--%s]\n" , NoOrient.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 }
-cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &SHDegree , &AdvectionSteps , &AdvectionStepSize , NULL };
+cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &SHDegree , &AdvectionSteps , &AdvectionStepSize , &CenterToInversion , &GSSTolerance , &PoincareMaxNorm , NULL };
 
 
 template< class Real >
@@ -217,7 +225,14 @@ template< typename Real >
 void Center( SphericalGeometry::Mesh< Real >& mesh )
 {
 	static const int MAX_ITERATIONS = 1000;
-	if( mesh.normalize( MAX_ITERATIONS , CutOff.value , true , Verbose.set )==MAX_ITERATIONS ) fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations\n" , MAX_ITERATIONS );
+	int iters;
+	switch( CenterToInversion.value )
+	{
+		case 0:  iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::CenterToInversion() , Verbose.set ) ; break;
+		case 1:  iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::GSSCenterToInversion( (Real)GSSTolerance.value ) , Verbose.set ) ; break;
+		default: iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::PoincareCenterToInversion( (Real)PoincareMaxNorm.value ) , Verbose.set ) ; break;
+	}
+	if( iters==MAX_ITERATIONS ) fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations\n" , MAX_ITERATIONS );
 }
 template< unsigned int SHDegree , typename Real >
 void SHCenter( SphericalGeometry::Mesh< Real >& mesh )

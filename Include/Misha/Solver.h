@@ -33,6 +33,39 @@ DAMAGE.
 #include "SparseMatrix.h"
 #include "Vector.h"
 
+
+// Code borrowed from: https://en.wikipedia.org/wiki/Golden_section_search
+template< class Real , class Functor >
+std::pair< Real , Real > GoldenSectionSearch( Functor& f , Real a , Real b , Real tolerance )
+{
+	const static Real INVPHI   = (Real)( ( sqrt(5.) - 1 ) / 2. );
+	const static Real INVPHI_2 = (Real)( ( 3 - sqrt(5.) ) / 2. );
+	const static Real LOG_INVPHI = (Real)log( INVPHI );
+	Real delta = b - a;
+	if( delta<=tolerance ) return std::pair< Real , Real >( a , b );
+	int n = (int)ceil( log(tolerance/delta) / LOG_INVPHI );
+	Real c = a + INVPHI_2 * delta;
+	Real d = a + INVPHI   * delta;
+	Real fc = f(c) , fd = f(d);
+	for( int i=0 ; i<n ; i++ )
+		if( fc<fd )
+		{
+			b = d , d = c , fd = fc;
+			delta *= INVPHI;
+			c = a + INVPHI_2 * delta;
+			fc = f(c);
+		}
+		else
+		{
+			a = c , c = d , fc = fd;
+			delta *= INVPHI;
+			d = a + INVPHI * delta;
+			fd = f(d);
+		}
+	if( fc<fd ) return std::pair< Real , Real >( a , d );
+	else        return std::pair< Real , Real >( c , b );
+}
+
 template< class Real >
 class Solver
 {
