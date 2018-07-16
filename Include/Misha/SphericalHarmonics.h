@@ -40,7 +40,7 @@ namespace HomogeneousPolynomials
 		Function( unsigned int x , unsigned int y , unsigned int z , double v=1. ){ coefficients[ Index( x , y , z ) ] = v; }
 		Function( Point< double , Dim > c ) : coefficients(c) { }
 		double value( Point< double , Dim > p ) const{ return Point< double , Dim >::Dot( coefficients , p ); }
-		double operator()( Point3D< double > p ) const { return value( Monomials( p ) ); }
+		double operator()( Point3D< double > p ) const { return value( Monomials< Degree >( p ) ); }
 		Function operator + ( const Function& f ) const { return Function( coefficients + f.coefficients ); }
 		Function operator - ( const Function& f ) const { return Function( coefficients - f.coefficients ); }
 		Function operator * ( double s ) const { return Function( coefficients*s ); }
@@ -106,7 +106,7 @@ namespace HomogeneousPolynomials
 			}
 		}
 		Point3D< double > value( Point< double , Dim > p ) const { return Point3D< double >( Point< double , Dim >::Dot( dx , p ) , Point< double , Dim >::Dot( dy , p ) , Point< double , Dim >::Dot( dz , p ) ); }
-		Point3D< double > operator()( Point3D< double > p ) const { return value( Monomials( p ) ); }
+		Point3D< double > operator()( Point3D< double > p ) const { return value( Monomials< Degree >( p ) ); }
 	};
 };
 

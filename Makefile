@@ -64,7 +64,7 @@ CXX=g++
 MD=mkdir
 
 SOFT_OBJECTS=$(addprefix $(OBJECTS), $(addsuffix .o, $(basename $(SOFT_SOURCE))))
-PARAMETRIZATION_OBJECTS=$(addprefix $(OBJECTS), $(addsuffix .o, $(basename $(PARAMTERIZATION_SOURCE))))
+PARAMETRIZATION_OBJECTS=$(addprefix $(OBJECTS), $(addsuffix .o, $(basename $(PARAMETRIZATION_SOURCE))))
 SPHERE_MAP_OBJECTS=$(addprefix $(OBJECTS), $(addsuffix .o, $(basename $(SPHERE_MAP_SOURCE))))
 REGISTER_OBJECTS=$(addprefix $(OBJECTS), $(addsuffix .o, $(basename $(REGISTER_SOURCE))))
 
@@ -79,6 +79,7 @@ all: $(BIN)$(REGISTER_TARGET)
 debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: LFLAGS += $(LFLAGS_DEBUG)
 debug: $(BIN)
+debug: $(BIN)$(SOFT_TARGET)
 debug: $(BIN)$(PARAMETRIZATION_TARGET)
 debug: $(BIN)$(SPHERE_MAP_TARGET)
 debug: $(BIN)$(REGISTER_TARGET)

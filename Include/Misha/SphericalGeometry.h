@@ -129,7 +129,7 @@ namespace SphericalGeometry
 			{
 				Real len = (Real)Length(c);
 				if( len>=maxNorm ) c *= maxNorm / len;
-				_NormalizationFunctor< Real > nf( mesh , c );
+				_NormalizationFunctor nf( mesh , c );
 				return SphericalInversion< Real >( c * GoldenSectionSearch( nf , (Real)0 , (Real)1 , 1e-6/len ).second );
 			}
 		};
@@ -147,7 +147,7 @@ namespace SphericalGeometry
 		};
 
 		FractionalLinearTransformation< Real > normalizer( int iters , double cutOff , bool gaussNewton , bool verbose=false ) const;
-		int normalize( int iters , double cutOff , bool gaussNewton , const CenterToInversion& c2i=TrivialCenterToInversion() , bool verbose=false );
+		int normalize( int iters , double cutOff , bool gaussNewton , const CenterToInversion& c2i=CenterToInversion() , bool verbose=false );
 
 		template< unsigned int SHDegree >
 		int normalizeSH( int iters , int advectionSteps , Real advectionStepSize , double cutOff , bool gaussNewton , bool verbose=false );
@@ -155,7 +155,6 @@ namespace SphericalGeometry
 		static Point3D< Real > SphericalInvert( Point3D< Real > p , Point3D< Real > c );
 	protected:
 		void _normalize( bool verbose );
-		template< typename Real >
 		struct _NormalizationFunctor
 		{
 			const SphericalGeometry::Mesh< Real >& mesh;
