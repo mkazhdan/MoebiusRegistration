@@ -4,6 +4,7 @@
 <A HREF="#EXECUTABLE">executables</A>
 <A HREF="#USAGE">usage</A>
 <A HREF="#NOTES">notes</A>
+<A HREF="#CHANGES">changes</A>
 </CENTER>
 <HR>
 This distribution contains code for constructing and registering conformal spherical parametrizations of water-tight, genus-zero surfaces. Specifically, it provides implementations for:
