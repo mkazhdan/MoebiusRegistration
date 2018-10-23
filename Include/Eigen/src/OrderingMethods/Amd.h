@@ -8,7 +8,7 @@
 NOTE: this routine has been adapted from the CSparse library:
 
 Copyright (c) 2006, Timothy A. Davis.
-http://www.suitesparse.com
+http://www.cise.ufl.edu/research/sparse/CSparse
 
 CSparse is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public

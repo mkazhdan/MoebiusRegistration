@@ -218,8 +218,8 @@ struct conj_retval
 * Implementation of abs2                                                 *
 ****************************************************************************/
 
-template<typename Scalar,bool IsComplex>
-struct abs2_impl_default
+template<typename Scalar>
+struct abs2_impl
 {
   typedef typename NumTraits<Scalar>::Real RealScalar;
   static inline RealScalar run(const Scalar& x)
@@ -228,23 +228,12 @@ struct abs2_impl_default
   }
 };
 
-template<typename Scalar>
-struct abs2_impl_default<Scalar, true> // IsComplex
+template<typename RealScalar>
+struct abs2_impl<std::complex<RealScalar> >
 {
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  static inline RealScalar run(const Scalar& x)
+  static inline RealScalar run(const std::complex<RealScalar>& x)
   {
     return real(x)*real(x) + imag(x)*imag(x);
-  }
-};
-
-template<typename Scalar>
-struct abs2_impl
-{
-  typedef typename NumTraits<Scalar>::Real RealScalar;
-  static inline RealScalar run(const Scalar& x)
-  {
-    return abs2_impl_default<Scalar,NumTraits<Scalar>::IsComplex>::run(x);
   }
 };
 
@@ -718,21 +707,21 @@ struct scalar_fuzzy_impl : scalar_fuzzy_default_impl<Scalar, NumTraits<Scalar>::
 
 template<typename Scalar, typename OtherScalar>
 inline bool isMuchSmallerThan(const Scalar& x, const OtherScalar& y,
-                              const typename NumTraits<Scalar>::Real &precision = NumTraits<Scalar>::dummy_precision())
+                                   typename NumTraits<Scalar>::Real precision = NumTraits<Scalar>::dummy_precision())
 {
   return scalar_fuzzy_impl<Scalar>::template isMuchSmallerThan<OtherScalar>(x, y, precision);
 }
 
 template<typename Scalar>
 inline bool isApprox(const Scalar& x, const Scalar& y,
-                     const typename NumTraits<Scalar>::Real &precision = NumTraits<Scalar>::dummy_precision())
+                          typename NumTraits<Scalar>::Real precision = NumTraits<Scalar>::dummy_precision())
 {
   return scalar_fuzzy_impl<Scalar>::isApprox(x, y, precision);
 }
 
 template<typename Scalar>
 inline bool isApproxOrLessThan(const Scalar& x, const Scalar& y,
-                               const typename NumTraits<Scalar>::Real &precision = NumTraits<Scalar>::dummy_precision())
+                                    typename NumTraits<Scalar>::Real precision = NumTraits<Scalar>::dummy_precision())
 {
   return scalar_fuzzy_impl<Scalar>::isApproxOrLessThan(x, y, precision);
 }

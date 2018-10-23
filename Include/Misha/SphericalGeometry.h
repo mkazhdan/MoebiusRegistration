@@ -41,10 +41,9 @@ namespace SphericalGeometry
 {
 	template< class Real > Point2D< Real > StereographicProjection( Point3D< Real > p ){ return Point2D< Real >( p[0] / ( 1-p[2] ) , p[1] / ( 1-p[2] ) ); }
 	template< class Real > Point3D< Real > IStereographicProjection( Point2D< Real > p ){ return Point3D< Real >( 2*p[0] , 2*p[1] , Point2D< Real >::SquareNorm( p )-1 ) / ( Point2D< Real >::SquareNorm( p ) + 1 ) ; }
-	template< class Real > Real Area( const Point3D< Real >& v1, const Point3D< Real >& v2 , const Point3D< Real >& v3 );
-	template< class Real > void BarycentricCoordinates( const Point3D< Real >& p , const Point3D< Real >& v1 , const Point3D< Real >& v2, const Point3D< Real >& v3 , Real& a0 , Real& a1 , Real& a2 );
+	template< typename Real > Real Area( const std::vector< Point3D< Real > > &vertices , const std::vector< int > &polygon );
+	template< typename Real > Real Area( const std::vector< Point3D< Real > > &vertices );
 	unsigned long long Key( int v1 , int v2 );
-	template< class Real > double TriangleArea( Point3D< Real > p1 , Point3D< Real > p2 , Point3D< Real > p3 );
 
 	template< class Real > SquareMatrix< Real , 3 > Correlate( SphericalGrid< Real >& source , SphericalGrid< Real >& target , Real& error , bool gradientDomain , bool invert );
 
@@ -65,6 +64,7 @@ namespace SphericalGeometry
 		FractionalLinearTransformation( void ){ matrix(0,0) = matrix(1,1) = 1 , matrix(0,1) = matrix(1,0) = 0; }
 		FractionalLinearTransformation( SphericalInversion< Real > si );
 		FractionalLinearTransformation( SquareMatrix< Real , 3 > m );
+		FractionalLinearTransformation( const std::pair< Point2D< Real > , Point2D< Real > > pairs[3] );
 
 		Point2D< Real > operator()( Point2D< Real > p ) const;
 		Point3D< Real > operator()( Point3D< Real > p ) const;
@@ -84,36 +84,33 @@ namespace SphericalGeometry
 	template< class Real >
 	struct Mesh
 	{
-		std::vector< TriangleIndex > triangles;
+		std::vector< std::vector< int > > polygons;
 		std::vector< Point3D< Real > > vertices;
 		std::vector< Real > masses;
 
 		Mesh( void ){}
-		Mesh( const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& sVertices , const std::vector< TriangleIndex >& triangles );
+		Mesh( const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& sVertices , const std::vector< std::vector< int > > &polygons );
 
 		void write( const char* fileName , const std::vector< Point3D< Real > >& vertices ,                                                bool binary=true ) const;
 		void write( const char* fileName , const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& colors , bool binary=true ) const;
 		void read( const char* fileName , std::vector< Point3D< Real > >& vertices ,                                          bool verbose=false , bool normalize=true );
-		void read( const char* fileName , std::vector< Point3D< Real > >& vertices , std::vector< Point3D< Real > >& colors , bool verbose=false , bool normalize=true );
+		bool read( const char* fileName , std::vector< Point3D< Real > >& vertices , std::vector< Point3D< Real > >& colors , bool verbose=false , bool normalize=true );
 
-		double area( int t ) const;
-		double area( int t , FractionalLinearTransformation< Real > flt ) const;
-		Point3D< Real > center( int t ) const;
-		Point3D< Real > center( int t , FractionalLinearTransformation< Real > flt ) const;
-		Point3D< Real > center( int t , SphericalInversion< Real > inv ) const;
+		double area( int p ) const;
+		Point3D< Real > center( int p ) const;
+		template< typename F > double area( int p , F f ) const;
+		template< typename F > Point3D< Real > center( int p , F f ) const;
 		Real constant( void ) const;
 		Point3D< Real > center( void ) const;
-		Point3D< Real > center( FractionalLinearTransformation< Real > flt ) const;
-		Point3D< Real > center( SphericalInversion< Real > inv ) const;
+		template< typename F > Point3D< Real > center( F f ) const;
 		SquareMatrix< Real , 3 > dCenter( void ) const;
-		SquareMatrix< Real , 3 > dCenter( FractionalLinearTransformation< Real > flt ) const;
+		template< typename F > SquareMatrix< Real , 3 > dCenter( F f ) const;
 
 		template< unsigned int SHDegree > Point< Real , SphericalHarmonics::Dimension< SHDegree >() > centerSH( void ) const;
 		template< unsigned int SHDegree > SquareMatrix< Real , SphericalHarmonics::Dimension< SHDegree >() > dCenterSH( void ) const;
 		template< typename VF > void advect( VF vf , int steps );
 
-
-		Mesh& operator *= ( FractionalLinearTransformation< Real > flt );
+		template< typename F > Mesh &operator *= ( F f );
 
 		void makeUnitMass( void );
 
@@ -160,31 +157,52 @@ namespace SphericalGeometry
 			const SphericalGeometry::Mesh< Real >& mesh;
 			Point3D< Real > dir;
 			_NormalizationFunctor( const SphericalGeometry::Mesh< Real >& m , Point3D< Real > d ) : mesh(m) , dir(d) {}
-			Real operator()( Real s ) const { return Point3D< Real >::SquareNorm( mesh.center( dir*s ) ); }
+			Real operator()( Real s ) const { return Point3D< Real >::SquareNorm( mesh.center( SphericalInversion< Real >( dir*s ) ) ); }
 		};
 	};
 
 	template< class Real >
 	class Polygon
 	{
+	public:
+		struct PlanarSources
+		{
+			int idx[2];
+			PlanarSources( void ){ idx[0] = idx[1] = -1; }
+			static int SharedIndex( const PlanarSources &ps1 , const PlanarSources &ps2 )
+			{
+				if( ps1.idx[0]>=0 )
+					if( ps1.idx[0]==ps2.idx[0] || ps1.idx[0]==ps2.idx[1] ) return ps1.idx[0];
+					else if( ps1.idx[1]>=0 ) if( ps1.idx[1]==ps2.idx[0] || ps1.idx[1]==ps2.idx[1] ) return ps1.idx[1];
+					return -1;
+			}
+			void addIndex( int i )
+			{
+				if     ( idx[0]==-1 ) idx[0] = i;
+				else if( idx[1]==-1 ) idx[1] = i;
+				else if( i>=0 ) fprintf( stderr , "[WARNING] PlanarSources::addIndex: both indices assigned: %d %d <- %d\n" , idx[0] , idx[1] , i );
+			}
+			bool full( void ) const { return idx[1]>=0; }
+		};
+	protected:
 		std::vector< int > _vertices;
 
-		template< class VertexData , typename F >
-		void _split( Point3D< Real > pNormal , Real pOffset , Polygon& back , Polygon& front , std::vector< Point3D< Real > >& vertices , std::vector< VertexData >* vData , std::unordered_map< unsigned long long , int >& vMap , F VertexOnPlane ) const;
+		template< class VertexData >
+		void _split( Point3D< Real > pNormal , Real pOffset , int pIdx , Polygon &back , Polygon &front , std::vector< Point3D< Real > >& vertices , std::vector< PlanarSources > &pSources , std::vector< VertexData >* vData , std::unordered_map< unsigned long long , int >& vMap ) const;
 	public:
 		int sourceID , theta , phi;
 		Real mass;
 		Polygon( int id=-1 , Real m=0 ) : sourceID(id) , mass(m) { theta = phi = -1; }
-		Polygon( int id , Real m , int v0 , int v1 , int v2 ) : sourceID(id) , mass(m) { _vertices.push_back( v0 ) ; _vertices.push_back( v1 ) ; _vertices.push_back( v2 ) ; theta = phi = -1 ; }
+		Polygon( int id , Real m , const std::vector< int > &vIndices ) : sourceID(id) , mass(m) , _vertices( vIndices ) , theta(-1) , phi(-1) { }
 		int& operator[] ( int idx ) { return _vertices[(idx+_vertices.size() )%_vertices.size()]; }
 		const int& operator[] ( int idx ) const { return _vertices[(idx+_vertices.size() )%_vertices.size()]; }
 		void push_back( int idx ){ _vertices.push_back(idx); }
 		size_t size( void ) const { return _vertices.size(); }
 
-		template< typename F >
-		void split( Point3D< Real > pNormal , Real pOffset , Polygon& back , Polygon& front , std::vector< Point3D< Real > >& vertices , std::unordered_map< unsigned long long , int >& vMap , F VertexOnPlane = []( int vIdx ){ return false; } ) const { _split( pNormal , pOffset , back , front , vertices , (std::vector< Real >* )NULL , vMap , VertexOnPlane ); }
-		template< class VertexData , typename F >
-		void split( Point3D< Real > pNormal , Real pOffset , Polygon& back , Polygon& front , std::vector< Point3D< Real > >& vertices , std::vector< VertexData >& vData , std::unordered_map< unsigned long long , int >& vMap , F VertexOnPlane = []( int vIdx ){ return false; } ) const { _split( pNormal , pOffset , back , front , vertices , &vData , vMap , VertexOnPlane ); }
+		void split( Point3D< Real > pNormal , Real pOffset , int pIdx , Polygon &back , Polygon &front , std::vector< Point3D< Real > >& vertices , std::vector< PlanarSources > &pSources ,                                    std::unordered_map< unsigned long long , int >& vMap ) const { _split( pNormal , pOffset , pIdx , back , front , vertices , pSources , (std::vector< Real >* )NULL , vMap ); }
+		template< class VertexData >
+		void split( Point3D< Real > pNormal , Real pOffset , int pIdx , Polygon &back , Polygon &front , std::vector< Point3D< Real > >& vertices , std::vector< PlanarSources > &pSources , std::vector< VertexData >& vData , std::unordered_map< unsigned long long , int >& vMap ) const { _split( pNormal , pOffset , pIdx , back , front , vertices , pSources , &vData                      , vMap ); }
+
 		double area( const std::vector< Point3D< Real > >& vertices ) const;
 	};
 
@@ -195,8 +213,8 @@ namespace SphericalGeometry
 		int _resolution;
 		std::vector< Point3D< Real > > _vertices;
 		std::vector< Polygon< Real > > _polygons;
-		template< class VertexData > void _splitPolygon( Polygon< Real > p , std::unordered_map< unsigned long long , int >& vMap , const int poles[2] , std::vector< VertexData >* vData ); 
-		template< class VertexData > void _splitPolygonPhi( Polygon< Real > p , int theta , std::unordered_map< unsigned long long , int >& vMap , std::vector< VertexData >* vData );
+		template< class VertexData > void _splitPolygon   ( Polygon< Real > p ,             std::unordered_map< unsigned long long , int >& vMap , std::vector< typename Polygon< Real >::PlanarSources > &pSources , std::vector< VertexData >* vData ); 
+		template< class VertexData > void _splitPolygonPhi( Polygon< Real > p , int theta , std::unordered_map< unsigned long long , int >& vMap , std::vector< typename Polygon< Real >::PlanarSources > &pSources , std::vector< VertexData >* vData );
 		template< class VertexData > void _collapseCells( std::vector< VertexData >* vData );
 		template< class VertexData > void _init( const Mesh< Real >& mesh , std::vector< VertexData >* vData , int resolution , bool verbose );
 	public:

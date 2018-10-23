@@ -331,11 +331,11 @@ inline void MatrixBase<Derived>::adjointInPlace()
 
 namespace internal {
 
-template<typename BinOp,typename Xpr,typename Rhs>
-struct blas_traits<SelfCwiseBinaryOp<BinOp,Xpr,Rhs> >
- : blas_traits<typename internal::remove_all<typename Xpr::Nested>::type>
+template<typename BinOp,typename NestedXpr,typename Rhs>
+struct blas_traits<SelfCwiseBinaryOp<BinOp,NestedXpr,Rhs> >
+ : blas_traits<NestedXpr>
 {
-  typedef SelfCwiseBinaryOp<BinOp,Xpr,Rhs> XprType;
+  typedef SelfCwiseBinaryOp<BinOp,NestedXpr,Rhs> XprType;
   static inline const XprType extract(const XprType& x) { return x; }
 };
 
@@ -392,6 +392,7 @@ struct checkTransposeAliasing_impl
                       ::run(extract_data(dst), other))
           && "aliasing detected during transposition, use transposeInPlace() "
              "or evaluate the rhs into a temporary using .eval()");
+
     }
 };
 

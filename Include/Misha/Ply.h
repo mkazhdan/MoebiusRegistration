@@ -437,8 +437,8 @@ PlyProperty PlyColorVertex< double >::WriteProperties[]=
 };
 
 ///////////////////
-template< class Real >
-class PlyParametrizedVertex : public VectorSpace< Real , PlyParametrizedVertex< Real > >
+template< class Real , class PReal=Real >
+class PlyParametrizedVertex : public VectorSpace< Real , PlyParametrizedVertex< Real , PReal > >
 {
 public:
 	//////////////////////////
@@ -451,7 +451,8 @@ public:
 	static PlyProperty ReadProperties[];
 	static PlyProperty WriteProperties[];
 
-	Point3D< Real > point , param , color;
+	Point3D< Real > point , color;
+	Point3D< PReal > param;
 
 	operator Point3D<Real>& ()					{return point;}
 	operator const Point3D<Real>& () const		{return point;}
@@ -460,7 +461,7 @@ public:
 	PlyParametrizedVertex( const Point3D<Real>& p ) : point(p) {}
 };
 template<>
-PlyProperty PlyParametrizedVertex< float >::ReadProperties[]=
+PlyProperty PlyParametrizedVertex< float , float >::ReadProperties[]=
 {
 	{  "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyParametrizedVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{  "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyParametrizedVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
@@ -470,7 +471,7 @@ PlyProperty PlyParametrizedVertex< float >::ReadProperties[]=
 	{ "pz" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyParametrizedVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
 };
 template<>
-PlyProperty PlyParametrizedVertex< float >::WriteProperties[]=
+PlyProperty PlyParametrizedVertex< float , float >::WriteProperties[]=
 {
 	{  "x" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyParametrizedVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{  "y" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyParametrizedVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
@@ -480,7 +481,27 @@ PlyProperty PlyParametrizedVertex< float >::WriteProperties[]=
 	{ "pz" , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyParametrizedVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
 };
 template<>
-PlyProperty PlyParametrizedVertex< double >::ReadProperties[]=
+PlyProperty PlyParametrizedVertex< float , double >::ReadProperties[]=
+{
+	{  "x" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "y" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "z" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "px" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , param.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "py" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , param.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "pz" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+PlyProperty PlyParametrizedVertex< float , double >::WriteProperties[]=
+{
+	{  "x" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "y" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "z" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "px" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , param.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "py" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , param.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "pz" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+PlyProperty PlyParametrizedVertex< double , double >::ReadProperties[]=
 {
 	{  "x" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{  "y" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
@@ -490,7 +511,7 @@ PlyProperty PlyParametrizedVertex< double >::ReadProperties[]=
 	{ "pz" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
 };
 template<>
-PlyProperty PlyParametrizedVertex< double >::WriteProperties[]=
+PlyProperty PlyParametrizedVertex< double , double >::WriteProperties[]=
 {
 	{  "x" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{  "y" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
@@ -498,10 +519,31 @@ PlyProperty PlyParametrizedVertex< double >::WriteProperties[]=
 	{ "px" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , param.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "py" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , param.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "pz" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};
+
+template<>
+PlyProperty PlyParametrizedVertex< double , float >::ReadProperties[]=
+{
+	{  "x" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "y" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "z" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "px" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , param.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "py" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , param.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "pz" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+PlyProperty PlyParametrizedVertex< double , float >::WriteProperties[]=
+{
+	{  "x" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "y" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "z" , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "px" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , param.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "py" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , param.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "pz" , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
 };
 ///////////////////
-template< class Real >
-class PlyParametrizedColorVertex : public VectorSpace< Real , PlyParametrizedColorVertex< Real > >
+template< class Real , class PReal=Real >
+class PlyParametrizedColorVertex : public VectorSpace< Real , PlyParametrizedColorVertex< Real , PReal > >
 {
 public:
 	//////////////////////////
@@ -514,7 +556,8 @@ public:
 	static PlyProperty ReadProperties[];
 	static PlyProperty WriteProperties[];
 
-	Point3D< Real > point , param , color;
+	Point3D< Real > point , color;
+	Point3D< PReal > param;
 
 	operator Point3D<Real>& ()					{return point;}
 	operator const Point3D<Real>& () const		{return point;}
@@ -523,7 +566,7 @@ public:
 	PlyParametrizedColorVertex( const Point3D<Real>& p ) : point(p) {}
 };
 template<>
-PlyProperty PlyParametrizedColorVertex< float >::ReadProperties[]=
+PlyProperty PlyParametrizedColorVertex< float , float >::ReadProperties[]=
 {
 	{  "x"            , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyParametrizedColorVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{  "y"            , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyParametrizedColorVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
@@ -539,7 +582,7 @@ PlyProperty PlyParametrizedColorVertex< float >::ReadProperties[]=
 	{ "diffuse_blue"  , PLY_UCHAR , PLY_FLOAT , int( offsetof( PlyParametrizedColorVertex , color.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
 };
 template<>
-PlyProperty PlyParametrizedColorVertex< float >::WriteProperties[]=
+PlyProperty PlyParametrizedColorVertex< float , float >::WriteProperties[]=
 {
 	{  "x"    , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyParametrizedColorVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{  "y"    , PLY_FLOAT , PLY_FLOAT , int( offsetof( PlyParametrizedColorVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
@@ -552,7 +595,36 @@ PlyProperty PlyParametrizedColorVertex< float >::WriteProperties[]=
 	{ "blue"  , PLY_UCHAR , PLY_FLOAT , int( offsetof( PlyParametrizedColorVertex , color.coords[2] ) ) , 0 , 0 , 0 , 0 }
 };
 template<>
-PlyProperty PlyParametrizedColorVertex< double >::ReadProperties[]=
+PlyProperty PlyParametrizedColorVertex< float , double >::ReadProperties[]=
+{
+	{  "x"            , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "y"            , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "z"            , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "px"            , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , param.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "py"            , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , param.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "pz"            , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "red"           , PLY_UCHAR  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , color.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "green"         , PLY_UCHAR  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , color.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "blue"          , PLY_UCHAR  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , color.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "diffuse_red"   , PLY_UCHAR  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , color.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "diffuse_green" , PLY_UCHAR  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , color.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "diffuse_blue"  , PLY_UCHAR  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , color.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+PlyProperty PlyParametrizedColorVertex< float , double >::WriteProperties[]=
+{
+	{  "x"    , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "y"    , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "z"    , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "px"    , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , param.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "py"    , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , param.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "pz"    , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "red"   , PLY_UCHAR  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , color.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "green" , PLY_UCHAR  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , color.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "blue"  , PLY_UCHAR  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , color.coords[2] ) ) , 0 , 0 , 0 , 0 }
+};
+template<>
+PlyProperty PlyParametrizedColorVertex< double , double >::ReadProperties[]=
 {
 	{  "x"            , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{  "y"            , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
@@ -568,7 +640,7 @@ PlyProperty PlyParametrizedColorVertex< double >::ReadProperties[]=
 	{ "diffuse_blue"  , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
 };
 template<>
-PlyProperty PlyParametrizedColorVertex< double >::WriteProperties[]=
+PlyProperty PlyParametrizedColorVertex< double , double >::WriteProperties[]=
 {
 	{  "x"    , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
 	{  "y"    , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
@@ -580,7 +652,35 @@ PlyProperty PlyParametrizedColorVertex< double >::WriteProperties[]=
 	{ "green" , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
 	{ "blue"  , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
 };
-///////////////////
+template<>
+PlyProperty PlyParametrizedColorVertex< double , float >::ReadProperties[]=
+{
+	{  "x"            , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "y"            , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "z"            , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "px"            , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , param.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "py"            , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , param.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "pz"            , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "red"           , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "green"         , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "blue"          , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "diffuse_red"   , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "diffuse_green" , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "diffuse_blue"  , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};
+template<>
+PlyProperty PlyParametrizedColorVertex< double , float >::WriteProperties[]=
+{
+	{  "x"    , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , point.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "y"    , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , point.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{  "z"    , PLY_DOUBLE , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , point.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "px"    , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , param.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "py"    , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , param.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "pz"    , PLY_FLOAT  , PLY_FLOAT  , int( offsetof( PlyParametrizedColorVertex , param.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "red"   , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[0] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "green" , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[1] ) ) , 0 , 0 , 0 , 0 } ,
+	{ "blue"  , PLY_UCHAR  , PLY_DOUBLE , int( offsetof( PlyParametrizedColorVertex , color.coords[2] ) ) , 0 , 0 , 0 , 0 } ,
+};///////////////////
 template< class Real >
 class PlyColorValueVertex : public VectorSpace< Real , PlyColorValueVertex< Real > >
 {

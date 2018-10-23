@@ -688,7 +688,7 @@ struct solve_retval<FullPivLU<_MatrixType>, Rhs>
      */
 
     const Index rows = dec().rows(), cols = dec().cols(),
-              nonzero_pivots = dec().rank();
+              nonzero_pivots = dec().nonzeroPivots();
     eigen_assert(rhs().rows() == rows);
     const Index smalldim = (std::min)(rows, cols);
 

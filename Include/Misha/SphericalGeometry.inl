@@ -33,49 +33,10 @@ DAMAGE.
 
 #define ALIGN_INVERSION_TO_CENTER
 
-template< class Real >
-Real SphericalGeometry::Area( const Point3D< Real >& v1, const Point3D< Real >& v2 , const Point3D< Real >& v3 )
-{
-	Point3D< Real > areaVector = Point3D< Real >::CrossProduct( v2-v1 , v3-v1 );
-	return (Real)sqrt( Point3D< Real >::SquareNorm( areaVector ) ) / 2.;
-};
-
-template< class Real >
-void SphericalGeometry::BarycentricCoordinates( const Point3D< Real >& p , const Point3D< Real >& v1 , const Point3D< Real >& v2, const Point3D< Real >& v3 , Real& a0 , Real& a1 , Real& a2 )
-{
-	Point3D< Real > p0 =  p - v1;
-	Point3D< Real > p1 = v2 - v1;
-	Point3D< Real > p2 = v3 - v1;
-	Point3D< Real >  n  = Point3D<Real>::CrossProduct( p1 , p2 );
-	Point3D< Real > _v1 = Point3D<Real>::CrossProduct( p2 , n  );
-	Point3D< Real > _v2 = Point3D<Real>::CrossProduct( p1 , n  );
-
-	_v1 /= Point3D<Real>::Dot( _v1 , p1 );
-	_v2 /= Point3D<Real>::Dot( _v2 , p2 );
-
-	a1 = Point3D<Real>::Dot( _v1 , p0 );
-	a2 = Point3D<Real>::Dot( _v2 , p0 );
-	a0 = Real(1.0) - a1 - a2;
-}
-
 inline unsigned long long SphericalGeometry::Key( int v1 , int v2 )
 {
 	if( v1<v2 ) return ( (unsigned long long)v1 )<<32 | ( (unsigned long long )v2);
 	else        return ( (unsigned long long)v2 )<<32 | ( (unsigned long long )v1);
-}
-
-template< class Real >
-double SphericalGeometry::TriangleArea( Point3D< Real > p1 , Point3D< Real > p2 , Point3D< Real > p3 )
-{
-	Point3D< double > p[] { Point3D< double >( p1 ) , Point3D< double >( p2 ) , Point3D< double >( p3 ) };
-	double theta[3];
-	for( int i=0 ; i<3 ; i++ )
-	{
-		Point3D< double > v[] = { p[(i+2)%3] - p[i] , p[(i+1)%3] - p[i] };
-		for( int j=0 ; j<2 ; j++ ){ v[j] -= p[i] * Point3D< double >::Dot( v[j] , p[i] ) ; v[j] /= Length( v[j] ); }
-		theta[i] = acos( std::max< Real >( -1 , std::min< Real >( 1, Point3D< double >::Dot( v[0] , v[1] ) ) ) );
-	}
-	return theta[0] + theta[1] + theta[2] - M_PI;
 }
 
 template< class Real >
@@ -169,6 +130,11 @@ SphericalGeometry::FractionalLinearTransformation< Real >::FractionalLinearTrans
 {
 	matrix = _ITransformation( StereographicProjection( m * _ZERO ) , StereographicProjection( m * _INFINITY ) , StereographicProjection( m * _ONE ) );
 }
+template< class Real >
+SphericalGeometry::FractionalLinearTransformation< Real >::FractionalLinearTransformation( const std::pair< Point2D< Real > , Point2D< Real > > pairs[3] )
+{
+	matrix = _ITransformation( pairs[0].second , pairs[1].second , pairs[2].second ) * _Transformation( pairs[0].first , pairs[1].first , pairs[2].first );
+}
 
 template< class Real >
 Point2D< Real > SphericalGeometry::FractionalLinearTransformation< Real >::operator()( Point2D< Real > p ) const
@@ -239,101 +205,117 @@ template< class Real > const Point3D< Real > SphericalGeometry::FractionalLinear
 template< class Real > const Point3D< Real > SphericalGeometry::FractionalLinearTransformation< Real >::_INFINITY(  0 ,  0 ,  1 );
 template< class Real > const Point3D< Real > SphericalGeometry::FractionalLinearTransformation< Real >::_ONE     (  1 ,  0 ,  0 );
 
+template< class Real >
+Real SphericalGeometry::Area( const std::vector< Point3D< Real > > &vertices )
+{
+	// For a triangle:
+	//		N = ( v1-v0 ) x ( v2-v0 )
+	//        = v0 x v1 + v1 x v2 + v2 x v0 
+	//        = [ ( v1-v0 ) x ( v1+v0 ) +  ( v2-v1 ) x ( v2+v1 ) +  ( v0-v2 ) x ( v0+v2 ) ] / 2
+	Point3D< Real > n;
+	for( int i=0 ; i<vertices.size() ; i++ )
+	{
+		Point3D< Real > b = vertices[ (i+1)%vertices.size() ] + vertices[i];
+		Point3D< Real > e = vertices[ (i+1)%vertices.size() ] - vertices[i];
+		n += Point3D< Real >::CrossProduct( b , e ) / 2;
+	}
+	return (Real)Length( n ) / 2;
+}
+template< class Real >
+Real SphericalGeometry::Area( const std::vector< Point3D< Real > > &vertices , const std::vector< int > &polygon )
+{
+	// For a triangle:
+	//		N = ( v1-v0 ) x ( v2-v0 )
+	//        = v0 x v1 + v1 x v2 + v2 x v0 
+	//        = [ ( v1-v0 ) x ( v1+v0 ) +  ( v2-v1 ) x ( v2+v1 ) +  ( v0-v2 ) x ( v0+v2 ) ] / 2
+	Point3D< Real > n;
+	for( int i=0 ; i<polygon.size() ; i++ )
+	{
+		Point3D< Real > b = vertices[ polygon[(i+1)%polygon.size() ] ] + vertices[ polygon[i] ];
+		Point3D< Real > e = vertices[ polygon[(i+1)%polygon.size() ] ] - vertices[ polygon[i] ];
+		n += Point3D< Real >::CrossProduct( b , e ) / 2;
+	}
+	return (Real)Length( n ) / 2;
+}
+
 /////////////////////////////
 // SphericalGeometry::Mesh //
 /////////////////////////////
 template< class Real >
-SphericalGeometry::Mesh< Real >::Mesh( const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& sVertices , const std::vector< TriangleIndex >& triangles )
+SphericalGeometry::Mesh< Real >::Mesh( const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& sVertices , const std::vector< std::vector< int > > &polygons )
 {
 	this->vertices = sVertices;
-	this->triangles = triangles;
-	masses.resize( triangles.size() );
-	for( int i=0 ; i<triangles.size() ; i++ )
-	{
-		Point3D< Real > v[] = { vertices[ triangles[i][0] ] , vertices[ triangles[i][1] ] , vertices[ triangles[i][2] ] };
-		masses[i] = (Real)Point3D< Real >::Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) ) / (Real)2.;
-	}
+	this->polygons = polygons;
+	masses.resize( polygons.size() );
+#pragma omp parallel for
+	for( int i=0 ; i<polygons.size() ; i++ ) masses[i] = Area( vertices , polygons[i] );
 }
 template< class Real >
 void SphericalGeometry::Mesh< Real >::write( const char* fileName , const std::vector< Point3D< Real > >& vertices , bool binary ) const
 {
-	std::vector< PlyParametrizedVertex< float > > _vertices( vertices.size() );
+	std::vector< PlyParametrizedVertex< float , Real > > _vertices( vertices.size() );
 	for( int i=0 ; i<vertices.size() ; i++ ) _vertices[i].point = Point3D< float >( vertices[i] ) , _vertices[i].param = Point3D< float >( this->vertices[i] );
-	PlyWriteTriangles( fileName , _vertices , triangles , PlyParametrizedVertex< float >::WriteProperties , PlyParametrizedVertex< float >::WriteComponents , binary ? PLY_BINARY_NATIVE : PLY_ASCII , NULL , 0 );
+	PlyWritePolygons( fileName , _vertices , polygons , PlyParametrizedVertex< float , Real >::WriteProperties , PlyParametrizedVertex< float , Real >::WriteComponents , binary ? PLY_BINARY_NATIVE : PLY_ASCII , NULL , 0 );
 }
 template< class Real >
 void SphericalGeometry::Mesh< Real >::write( const char* fileName , const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& colors , bool binary ) const
 {
 	std::vector< PlyParametrizedColorVertex< float > > _vertices( vertices.size() );
 	for( int i=0 ; i<vertices.size() ; i++ ) _vertices[i].point = Point3D< float >( vertices[i] ) , _vertices[i].param = Point3D< float >( this->vertices[i] ) , _vertices[i].color = Point3D< float >( colors[i] );
-	PlyWriteTriangles( fileName , _vertices , triangles , PlyParametrizedColorVertex< float >::WriteProperties , PlyParametrizedColorVertex< float >::WriteComponents , binary ? PLY_BINARY_NATIVE : PLY_ASCII , NULL , 0 );
+	PlyWritePolygons( fileName , _vertices , polygons , PlyParametrizedColorVertex< float , Real >::WriteProperties , PlyParametrizedColorVertex< float , Real >::WriteComponents , binary ? PLY_BINARY_NATIVE : PLY_ASCII , NULL , 0 );
 }
 template< class Real >
 void SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< Point3D< Real > >& vertices , bool verbose , bool normalize )
 {
 	int plyType;
-	std::vector< PlyParametrizedVertex< float > > _vertices;
-	PlyReadTriangles( fileName , _vertices , triangles , PlyParametrizedVertex< float >::WriteProperties , NULL , PlyParametrizedVertex< float >::WriteComponents , plyType , NULL , 0 );
+	std::vector< PlyParametrizedVertex< float , Real > > _vertices;
+	PlyReadPolygons( fileName , _vertices , polygons , PlyParametrizedVertex< float , Real >::WriteProperties , NULL , PlyParametrizedVertex< float , Real >::WriteComponents , plyType , NULL , 0 );
 	vertices.resize( _vertices.size() );
 	for( int i=0 ; i<vertices.size() ; i++ ) this->vertices[i] = Point3D< Real >( _vertices[i].param ) , vertices[i] = Point3D< Real >( _vertices[i].point );
-	masses.resize( triangles.size() );
-	for( int i=0 ; i<triangles.size() ; i++ )
-	{
-		Point3D< Real > v[] = { vertices[ triangles[i][0] ] , vertices[ triangles[i][1] ] , vertices[ triangles[i][2] ] };
-		masses[i] = (Real)Point3D< Real >::Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) ) / (Real)2.;
-	}
+	masses.resize( polygons.size() );
+#pragma omp parallel for
+	for( int i=0 ; i<polygons.size() ; i++ ) masses[i] = Area( vertices , polygons[i] );
 	if( normalize ) _normalize( verbose );
 }
 template< class Real >
-void SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< Point3D< Real > >& vertices , std::vector< Point3D< Real > >& colors , bool verbose , bool normalize )
+bool SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< Point3D< Real > >& vertices , std::vector< Point3D< Real > >& colors , bool verbose , bool normalize )
 {
 	int plyType;
-	std::vector< PlyParametrizedColorVertex< float > > _vertices;
-	PlyReadTriangles( fileName , _vertices , triangles , PlyParametrizedColorVertex< float >::WriteProperties , NULL , PlyParametrizedColorVertex< float >::WriteComponents , plyType , NULL , 0 );
+	bool propertyFlags[ PlyParametrizedColorVertex< float , Real >::ReadComponents ];
+	std::vector< PlyParametrizedColorVertex< float , Real > > _vertices;
+	PlyReadPolygons( fileName , _vertices , polygons , PlyParametrizedColorVertex< float , Real >::WriteProperties , propertyFlags , PlyParametrizedColorVertex< float , Real >::WriteComponents , plyType , NULL , 0 );
+	bool hasColor = (propertyFlags[6]||propertyFlags[9]) && (propertyFlags[7]||propertyFlags[10]) && (propertyFlags[8]||propertyFlags[11]);
+
 	this->vertices.resize( _vertices.size() ) , vertices.resize( _vertices.size() ) , colors.resize( _vertices.size() );
 	for( int i=0 ; i<_vertices.size() ; i++ ) this->vertices[i] = Point3D< Real >( _vertices[i].param ) , vertices[i] = Point3D< Real >( _vertices[i].point ) , colors[i] = Point3D< Real >( _vertices[i].color );
-	masses.resize( triangles.size() );
-	for( int i=0 ; i<triangles.size() ; i++ )
-	{
-		Point3D< Real > v[] = { vertices[ triangles[i][0] ] , vertices[ triangles[i][1] ] , vertices[ triangles[i][2] ] };
-		masses[i] = (Real)Point3D< Real >::Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) ) / (Real)2.;
-	}
+	masses.resize( polygons.size() );
+#pragma omp parallel for
+	for( int i=0 ; i<polygons.size() ; i++ ) masses[i] = Area( vertices , polygons[i] );
 	if( normalize ) _normalize( verbose );
+	return hasColor;
 }
 
 template< class Real >
-double SphericalGeometry::Mesh< Real >::area( int t ) const
+double SphericalGeometry::Mesh< Real >::area( int p ) const { return SphericalGeometry::Area( vertices , polygons[p] ); }
+template< class Real > template< typename F >
+double SphericalGeometry::Mesh< Real >::area( int p , F f ) const
 {
-	Point3D< Real > v[] = { vertices[ triangles[t][0] ] , vertices[ triangles[t][1] ] , vertices[ triangles[t][2] ] };
-	return Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) ) / 2.;
+	std::vector< Point3D< Real > > v( polygons[p].size() );
+	for( int i=0 ; i<polygons[p].size() ; i++ ) v[i] = f( vertices[ polygons[p][i] ] );
+	return SphericalGeometry::Area( v );
 }
 template< class Real >
-double SphericalGeometry::Mesh< Real >::area( int t , FractionalLinearTransformation< Real > flt ) const
+Point3D< Real > SphericalGeometry::Mesh< Real >::center( int p ) const
 {
-	Point3D< Real > v[3];
-	for( int j=0 ; j<3 ; j++ ) v[j] = flt( vertices[ triangles[t][j] ] );
-	return Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) ) / 2.;
-}
-template< class Real >
-Point3D< Real > SphericalGeometry::Mesh< Real >::center( int t ) const
-{
-	Point3D< Real > v[] = { vertices[ triangles[t][0] ] , vertices[ triangles[t][1] ] , vertices[ triangles[t][2] ] };
-	Point3D< Real > c = ( v[0] + v[1] + v[2] ) / (Real)3.;
+	Point3D< Real > c;
+	for( int i=0 ; i<polygons[p].size() ; i++ ) c += vertices[ polygons[p][i] ];
 	return c / Length( c );
 }
-template< class Real >
-Point3D< Real > SphericalGeometry::Mesh< Real >::center( int t , FractionalLinearTransformation< Real > flt ) const
+template< class Real > template< typename F >
+Point3D< Real > SphericalGeometry::Mesh< Real >::center( int p , F f ) const
 {
-	Point3D< Real > v[3];
-	for( int j=0 ; j<3 ; j++ ) v[j] = flt( vertices[ triangles[t][j] ] );
-	Point3D< Real > c = ( v[0] + v[1] + v[2] ) / (Real)3.;
-	return c / Length( c );
-}
-template< class Real >
-Point3D< Real > SphericalGeometry::Mesh< Real >::center( int t , SphericalInversion< Real > inv ) const
-{
-	Point3D< Real > v[3] = { inv( vertices[ triangles[t][0] ] ) , inv( vertices[ triangles[t][1] ] ) , inv( vertices[ triangles[t][2] ] ) };
-	Point3D< Real > c = ( v[0] + v[1] + v[2] ) / (Real)3.;
+	Point3D< Real > c;
+	for( int i=0 ; i<polygons[p].size() ; i++ ) c += f( vertices[ polygons[p][i] ] );
 	return c / Length( c );
 }
 template< class Real >
@@ -352,35 +334,18 @@ Point3D< Real > SphericalGeometry::Mesh< Real >::center( void ) const
 	// => ( \sum_T (p_T) * (p_T)^T * |T| ) v = \sum_T (p_T) * f(p_T) * |T|
 	// Noting that the integral of p * p_T over the sphere is 4*Pi/3 * Id., this gives:
 	//    v = 3 / (4*PI) * \sum_T (p_T) * f(p_T) * |T|
-	Real c0=0 , c1=0 , c2=0;
-	for( int t=0 ; t<triangles.size() ; t++ )
-	{
-		Point3D< Real > c = center(t) * masses[t]; // = p * ( mA / sA ) * sA;
-		c0 += c[0] , c1 += c[1] , c2 += c[2];
-	}
-	return Point3D< Real >( c0 , c1 , c2 );
-}
-template< class Real >
-Point3D< Real > SphericalGeometry::Mesh< Real >::center( SphericalGeometry::FractionalLinearTransformation< Real > flt ) const
-{
 	Point3D< Real > c;
-	for( int t=0 ; t<triangles.size() ; t++ ) c += center( t , flt ) * masses[t];
+	for( int p=0 ; p<polygons.size() ; p++ ) c += center(p) * masses[p]; // = p * ( mA / sA ) * sA;
 	return c;
 }
-template< class Real >
-Point3D< Real > SphericalGeometry::Mesh< Real >::center( SphericalGeometry::SphericalInversion< Real > inv ) const
+template< class Real > template< typename F >
+Point3D< Real > SphericalGeometry::Mesh< Real >::center( F f ) const
 {
-	Real c0=0 , c1=0 , c2=0;
-#pragma omp parallel for reduction( + : c0 , c1 , c2 )
-	for( int t=0 ; t<triangles.size() ; t++ )
-	{
-		Point3D< Real > c = center( t , inv ) * masses[t];
-		c0 += c[0] , c1 += c[1] , c2 += c[2];
-	}
-	return Point3D< Real >( c0 , c1 , c2 );
+	Point3D< Real > c;
+	for( int p=0 ; p<polygons.size() ; p++ ) c += center( p , f ) * masses[p];
+	return c;
 }
-template< class Real >
-template< unsigned int SHDegree >
+template< class Real > template< unsigned int SHDegree >
 Point< Real , SphericalHarmonics::Dimension< SHDegree >() > SphericalGeometry::Mesh< Real >::centerSH( void ) const
 {
 	static_assert( SHDegree<=SphericalHarmonics::MaxDegree , "[ERROR] Degree exceeds maximum spherical harmonic degree" );
@@ -397,8 +362,7 @@ Point< Real , SphericalHarmonics::Dimension< SHDegree >() > SphericalGeometry::M
 	for( int i=0 ; i<projections.size() ; i++ ) for( unsigned int j=0 ; j<SphericalHarmonics::Dimension< SHDegree >() ; j++ ) p[j] += (Real)projections[i][j];
 	return p;
 }
-template< class Real >
-template< unsigned int SHDegree >
+template< class Real > template< unsigned int SHDegree >
 SquareMatrix< Real , SphericalHarmonics::Dimension< SHDegree >() > SphericalGeometry::Mesh< Real >::dCenterSH( void ) const
 {
 	static_assert( SHDegree<=SphericalHarmonics::MaxDegree , "[ERROR] Degree exceeds maximum spherical harmonic degree" );
@@ -416,8 +380,7 @@ SquareMatrix< Real , SphericalHarmonics::Dimension< SHDegree >() > SphericalGeom
 	for( unsigned int i=0 ; i<SphericalHarmonics::Dimension< SHDegree >() ; i++ ) for( unsigned int j=0 ; j<=i ; j++ ) d(j,i) = d(i,j);
 	return d;
 }
-template< class Real >
-template< typename VF >
+template< class Real > template< typename VF >
 void SphericalGeometry::Mesh< Real >::advect( VF vf , int steps )
 {
 #pragma omp parallel for
@@ -437,12 +400,12 @@ template< class Real >
 SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( void ) const
 {
 	SquareMatrix< Real , 3 > D;
-	for( int t=0 ; t<triangles.size() ; t++ )
+	for( int p=0 ; p<polygons.size() ; p++ )
 	{
 		SquareMatrix< Real , 3 > _D = SquareMatrix< Real , 3 >::Identity();
-		Point3D< Real > p = center( t );
-		for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) _D(i,j) -= p[i] * p[j];
-		D += _D * masses[t];
+		Point3D< Real > c = center( p );
+		for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) _D(i,j) -= c[i] * c[j];
+		D += _D * masses[p];
 	}
 #ifdef ALIGN_INVERSION_TO_CENTER
 	return D * (Real)2;
@@ -450,16 +413,16 @@ SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( void ) const
 	return -D * (Real)2;
 #endif // ALIGN_INVERSION_TO_CENTER
 };
-template< class Real >
-SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( SphericalGeometry::FractionalLinearTransformation< Real > flt ) const
+template< class Real > template< typename F >
+SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( F f ) const
 {
 	SquareMatrix< Real , 3 > D;
-	for( int t=0 ; t<triangles.size() ; t++ )
+	for( int p=0 ; p<polygons.size() ; p++ )
 	{
 		SquareMatrix< Real , 3 > _D = SquareMatrix< Real , 3 >::Identity();
-		Point3D< Real > p = center( t , flt );
-		for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) _D(i,j) -= p[i] * p[j];
-		D += _D * masses[t];
+		Point3D< Real > c = center( p , f );
+		for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) _D(i,j) -= c[i] * c[j];
+		D += _D * masses[p];
 	}
 #ifdef ALIGN_INVERSION_TO_CENTER
 	return D * (Real)2;
@@ -468,11 +431,11 @@ SquareMatrix< Real , 3 > SphericalGeometry::Mesh< Real >::dCenter( SphericalGeom
 #endif // ALIGN_INVERSION_TO_CENTER
 };
 
-template< class Real >
-SphericalGeometry::Mesh< Real >& SphericalGeometry::Mesh< Real >::operator *= ( SphericalGeometry::FractionalLinearTransformation< Real > flt )
+template< class Real > template< typename F >
+SphericalGeometry::Mesh< Real >& SphericalGeometry::Mesh< Real >::operator *= ( F f )
 {
 #pragma omp parallel for
-	for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = flt( vertices[i] );
+	for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = f( vertices[i] );
 	return *this;
 }
 
@@ -598,12 +561,11 @@ void SphericalGeometry::Mesh< Real >::_normalize( bool verbose )
 {
 	Point3D< Real > center;
 	Real area = 0;
-	for( int i=0 ; i<triangles.size() ; i++ )
+	for( int p=0 ; p<polygons.size() ; p++ )
 	{
-		Point3D< Real > v[] = { vertices[ triangles[i][0] ] , vertices[ triangles[i][1] ] , vertices[ triangles[i][2] ] };
-		Real a = (Real)Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) ) / 2;
+		Real a = SphericalGeometry::Area( vertices , polygons[p] );
 		area += a;
-		center += ( v[0] + v[1] + v[2] ) / 3 * a;
+		center += this->center( p ) * a;
 	}
 	center /= area;
 #pragma omp parallel for
@@ -616,114 +578,98 @@ void SphericalGeometry::Mesh< Real >::_normalize( bool verbose )
 ////////////////////////////////
 // SphericalGeometry::Polygon //
 ////////////////////////////////
-template< class Real >
-template< class VertexData , typename F >
-void SphericalGeometry::Polygon< Real >::_split( Point3D< Real > pNormal , Real pOffset , SphericalGeometry::Polygon< Real >& back , SphericalGeometry::Polygon< Real >& front , std::vector< Point3D< Real > >& vertices , std::vector< VertexData >* vData , std::unordered_map< unsigned long long , int >& vMap , F VertexOnPlane ) const
+template< class Real > template< class VertexData >
+void SphericalGeometry::Polygon< Real >::_split( Point3D< Real > pNormal , Real pOffset , int pIdx , Polygon &back , Polygon &front , std::vector< Point3D< Real > >& vertices , std::vector< PlanarSources > &pSources , std::vector< VertexData >* vData , std::unordered_map< unsigned long long , int >& vMap ) const
 {
 	std::vector< Real > values( _vertices.size() );
 	bool frontSet = false , backSet = false;
-
 	front.sourceID = back.sourceID = sourceID;
 
 	// Evaluate the plane's function at the vertices and mark if front/back vertices have been found
-	for( int i=0 ; i<_vertices.size() ; i++ )
+	for( int i=0 ; i<size() ; i++ )
 	{
 		values[i] = Point3D< Real >::Dot( vertices[ _vertices[i] ] , pNormal ) - pOffset;
 
 		// Don't split on edges near the pole
-		if( VertexOnPlane( i ) || VertexOnPlane( i ) ) values[i] = 0.; 
+		if( pIdx>=0 && pSources[ _vertices[i] ].full() ) values[i] = 0;
 
 		backSet |= ( values[i]<0 ) , frontSet |= ( values[i]>0 );
 	}
-	if( !frontSet )
+
+	// If no vertices are in front or no vertices are behind, life is easy
+	if( !frontSet ){  back._vertices = _vertices ;  back.mass = mass ; return; }
+	if( !backSet  ){ front._vertices = _vertices ; front.mass = mass ; return; }
+
+	enum
 	{
-		for( int i=0 ; i<_vertices.size() ; i++ ) back._vertices.push_back( _vertices[i] );
-		back.mass = mass;
-		if( back.mass!=back.mass || front.mass!=front.mass )
-		{
-			printf( "1: %g %g %g\n" , back.mass , front.mass , mass );
-			exit( 0 );
-		}
-		return;
-	}
-	if( !backSet )
+		PLANE_STATE_BACK ,
+		PLANE_STATE_FRONT ,
+		PLANE_STATE_BOUNDARY
+	};
+	auto State = []( Real value )
 	{
-		for( int i=0 ; i<_vertices.size() ; i++ ) front._vertices.push_back( _vertices[i] );
-		front.mass = mass;
-		if( back.mass!=back.mass || front.mass!=front.mass )
-		{
-			printf( "2: %g %g %g\n" , back.mass , front.mass , mass );
-			exit( 0 );
-		}
-		return;
-	}
-	frontSet = backSet = false;
-	for( int i=0 ; i<size() ; i++ )
+		if     ( value<0 ) return PLANE_STATE_BACK;
+		else if( value>0 ) return PLANE_STATE_FRONT;
+		else               return PLANE_STATE_BOUNDARY;
+	};
+	struct _VertexIndex
 	{
-		int i1 = ( i-1+(int)size() ) % (int)size();	
-		if( values[i]*values[i1]<0 )
+		int idx , state;
+		_VertexIndex( int i , int s ) : idx(i) , state(s) {}
+	};
+
+	// Compute the indices of the refined polygons and their associated states
+	std::vector< _VertexIndex > vertexIndices;
+	for( int i0=0 ; i0<size() ; i0++ )
+	{
+		int i1 = (i0+1)%size();
+		vertexIndices.push_back( _VertexIndex( _vertices[i0] , State( values[i0] ) ) );
+		// If the edge crosses the plane, we need to create a new vertex
+		if( values[i0]*values[i1]<0 )
 		{
 			int vIdx;
-			unsigned long long key = Key( _vertices[i] , _vertices[i1] );
+			unsigned long long key = Key( _vertices[i0] , _vertices[i1] );
 			if( vMap.find( key )==vMap.end() )
 			{
-				Real t = values[i] / ( values[i] - values[i1] );
-				Point3D< Real > v = vertices[ _vertices[i1] ]*t + vertices[ _vertices[i] ]*(Real)(1.-t);
+				Real t = values[i0] / ( values[i0] - values[i1] );
+				Point3D< Real > v = vertices[ _vertices[i1] ]*t + vertices[ _vertices[i0] ]*(Real)(1.-t);
 				v /= (Real)Length( v );
 				vIdx = (int)vertices.size();
 				vertices.push_back( v );
-				if( vData ) vData->push_back( (*vData)[ _vertices[i1] ]*t + (*vData)[ _vertices[i] ]*(Real)(1.-t) );
+				if( vData ) vData->push_back( (*vData)[ _vertices[i1] ]*t + (*vData)[ _vertices[i0] ]*(Real)(1.-t) );
+				{
+					PlanarSources ps;
+					ps.addIndex( PlanarSources::SharedIndex( pSources[ _vertices[i0] ] , pSources[ _vertices[i1] ] ) );
+					ps.addIndex( pIdx );
+					pSources.push_back( ps );
+				}
 				vMap[key] = vIdx;
 			}
 			else vIdx = vMap[key];
-			back._vertices.push_back( vIdx );
-			front._vertices.push_back( vIdx );
-			frontSet = backSet = true;
+			vertexIndices.push_back( _VertexIndex( vIdx , PLANE_STATE_BOUNDARY ) );
 		}
-		if( values[i]==0 )
-		{
-			back._vertices.push_back( _vertices[i] );
-			front._vertices.push_back( _vertices[i] );
-		}
-		else
-			if( values[i]<0 ) back._vertices.push_back( _vertices[i] ) , backSet = true;
-			else			  front._vertices.push_back( _vertices[i] ) , frontSet = true;
 	}
-	if( !backSet ) back._vertices.resize( 0 );
-	if( !frontSet ) front._vertices.resize( 0 );
-	Real a[] = { back.area( vertices ) , front.area( vertices ) };
-	if( a[0]!=a[0] || a[1]!=a[1] )
+
+	for( int i=0 ; i<vertexIndices.size() ; i++ )
 	{
-		printf( "%g %g\n" , a[0] , a[1] );
-		printf( "%d %d\n" , (int)back.size() , (int)front.size() );
-		for( int i=0 ; i< back.size() ; i++ ) printf( "B[%d] %g %g %g\n" , i , vertices[ back[i]][0] , vertices[ back[i]][1] , vertices[ back[i]][2] );
-		for( int i=0 ; i<front.size() ; i++ ) printf( "F[%d] %g %g %g\n" , i , vertices[ front[i]][0] , vertices[ front[i]][1] , vertices[ front[i]][2] );
-		exit( 0 );
+		if( vertexIndices[i].state!=PLANE_STATE_BACK ) front._vertices.push_back( vertexIndices[i].idx );
+		if( vertexIndices[i].state!=PLANE_STATE_FRONT ) back._vertices.push_back( vertexIndices[i].idx );
 	}
-	Real _a = a[0] + a[1];
-	if( _a ) a[0] /= _a , a[1] /= _a;
-	else a[0] = a[1] = (Real)1./2;
-	back.mass = mass * a[0] , front.mass = mass * a[1];
-	if( back.mass!=back.mass || front.mass!=front.mass )
-	{
-		printf( "%g %g <- %g %g %g\n" , back.mass , front.mass , mass , a[0] , a[1] );
-		exit( 0 );
-	}
+
+	Real a0 = back.area( vertices ) , a1 = front.area( vertices );
+	Real a = a0 + a1;
+	if( a ) a0 /= a , a1 /= a;
+	else a0 = a1 = (Real)1./2;
+	back.mass = mass * a0 , front.mass = mass * a1;
 }
 template< class Real >
-double SphericalGeometry::Polygon< Real >::area( const std::vector< Point3D< Real > >& vertices ) const
-{
-	double area = 0;
-	for( int i=2 ; i<size() ; i++ ) area += TriangleArea( vertices[ _vertices[0] ] , vertices[ _vertices[i-1] ] , vertices[ _vertices[i] ] );
-	return area;
-}
+double SphericalGeometry::Polygon< Real >::area( const std::vector< Point3D< Real > >& vertices ) const { return SphericalGeometry::Area( vertices , _vertices ); }
 
 /////////////////////////////////////
 // SphericalGeometry::Tessellation //
 /////////////////////////////////////
-template< class Real >
-template< class VertexData >
-void SphericalGeometry::Tessellation< Real >::_splitPolygonPhi( Polygon< Real > p , int theta , std::unordered_map< unsigned long long , int >& vMap , std::vector< VertexData >* vData )
+template< class Real > template< class VertexData >
+void SphericalGeometry::Tessellation< Real >::_splitPolygonPhi( Polygon< Real > p , int theta , std::unordered_map< unsigned long long , int >& vMap , std::vector< typename SphericalGeometry::Polygon< Real >::PlanarSources > &pSources , std::vector< VertexData >* vData )
 {
 	auto Phi = [&] ( Point3D< Real > p )
 	{
@@ -743,8 +689,8 @@ void SphericalGeometry::Tessellation< Real >::_splitPolygonPhi( Polygon< Real > 
 		Real offset = -cos( phi );
 		Polygon< Real > back , front;
 
-		if( vData ) p.split( normal , offset , back , front , _vertices , *vData , vMap , [&]( int ){ return false; } );
-		else        p.split( normal , offset , back , front , _vertices ,          vMap , [&]( int ){ return false; } );
+		if( vData ) p.split( normal , offset , -1 , back , front , _vertices , pSources , *vData , vMap );
+		else        p.split( normal , offset , -1 , back , front , _vertices , pSources ,          vMap );
 		back.theta = theta<0 ? theta+_resolution : theta;
 		back.phi = i-1;
 		_polygons.push_back( back );
@@ -755,13 +701,12 @@ void SphericalGeometry::Tessellation< Real >::_splitPolygonPhi( Polygon< Real > 
 	_polygons.push_back( p );
 }
 
-template< class Real >
-template< class VertexData >
-void SphericalGeometry::Tessellation< Real >::_splitPolygon( SphericalGeometry::Polygon< Real > p , std::unordered_map< unsigned long long , int >& vMap , const int poles[2] , std::vector< VertexData >* vData )
+template< class Real > template< class VertexData >
+void SphericalGeometry::Tessellation< Real >::_splitPolygon( SphericalGeometry::Polygon< Real > p , std::unordered_map< unsigned long long , int >& vMap , std::vector< typename SphericalGeometry::Polygon< Real >::PlanarSources >& pSources , std::vector< VertexData >* vData )
 {
 	Polygon< Real > _p[2];
-	if( vData ) p.split( Point3D< Real >( 0 , 0 , 1 ) , 0. , _p[0] , _p[1] , _vertices , *vData , vMap , [&]( int vIdx ) { return vIdx==poles[0] || vIdx==poles[1]; } );
-	else        p.split( Point3D< Real >( 0 , 0 , 1 ) , 0. , _p[0] , _p[1] , _vertices ,          vMap , [&]( int vIdx ) { return vIdx==poles[0] || vIdx==poles[1]; } );
+	if( vData ) p.split( Point3D< Real >( 0 , 0 , 1 ) , 0. , 0 , _p[0] , _p[1] , _vertices , pSources , *vData , vMap );
+	else        p.split( Point3D< Real >( 0 , 0 , 1 ) , 0. , 0 , _p[0] , _p[1] , _vertices , pSources ,          vMap );
 
 	for( int w=0 ; w<2 ; w++ ) if( _p[w].size() )
 	{
@@ -786,9 +731,9 @@ void SphericalGeometry::Tessellation< Real >::_splitPolygon( SphericalGeometry::
 		Polygon< Real > p = _p[w];
 
 		Real minTheta = Theta( p[0] ) , maxTheta = Theta( p[0] );
-		int vSkip = -1;  
-		if( p[0]==poles[0] || p[0]==poles[1] ) minTheta = Theta( p[1] ) , maxTheta = Theta( p[1] ) , vSkip = 0;
-		else for( int j=1 ; j<p.size() ; j++ ) if( p[j]==poles[0] || p[j]==poles[1] ) vSkip = j;
+		int vSkip = -1;
+		if( pSources[ p[0] ].full() ) minTheta = Theta( p[1] ) , maxTheta = Theta( p[1] ) , vSkip = 0;
+		else for( int j=1 ; j<p.size() ; j++ ) if( pSources[ p[j] ].full() ) vSkip = j;
 
 		for( int j=1 ; j<p.size() ; j++ ) 
 		{
@@ -803,95 +748,33 @@ void SphericalGeometry::Tessellation< Real >::_splitPolygon( SphericalGeometry::
 		{
 			Real theta = ( (Real)i ) * 2. * M_PI / _resolution;
 			Polygon< Real > back , front;
-			if( vData ) p.split( Point3D< Real >( -sin(theta) , 0 , cos(theta) ) , 0. , back , front, _vertices , *vData , vMap , [&]( int vIdx ){ return vIdx==poles[0] || vIdx==poles[1]; } );
-			else        p.split( Point3D< Real >( -sin(theta) , 0 , cos(theta) ) , 0. , back , front, _vertices ,          vMap , [&]( int vIdx ){ return vIdx==poles[0] || vIdx==poles[1]; } );
-			_splitPolygonPhi( back , i-1 , vMap , vData );
+			if( vData ) p.split( Point3D< Real >( -sin(theta) , 0 , cos(theta) ) , 0. , ( i + _resolution ) % _resolution , back , front, _vertices , pSources , *vData , vMap );
+			else        p.split( Point3D< Real >( -sin(theta) , 0 , cos(theta) ) , 0. , ( i + _resolution ) % _resolution , back , front, _vertices , pSources ,          vMap );
+			_splitPolygonPhi( back , i-1 , vMap , pSources , vData );
 			p = front;
 		}
-		_splitPolygonPhi( p , end-1 , vMap , vData );
+		_splitPolygonPhi( p , end-1 , vMap , pSources , vData );
 	}
 }
 
-template< class Real >
-template< class VertexData >
+template< class Real > template< class VertexData >
 void SphericalGeometry::Tessellation< Real >::_init( const SphericalGeometry::Mesh< Real >& mesh , std::vector< VertexData >* vData , int resolution , bool verbose )
 {
 	_resolution = resolution;
-	int poles[] = { -1 , -1 };
 	_vertices = mesh.vertices;
-	_polygons.resize( mesh.triangles.size() );
+	_polygons.resize( mesh.polygons.size() );
 #pragma omp parallel for
-	for( int i=0 ; i<mesh.triangles.size() ; i++ ) _polygons[i] = Polygon< Real >( i , mesh.masses[i] , mesh.triangles[i][0] , mesh.triangles[i][1] , mesh.triangles[i][2] );
+	for( int i=0 ; i<mesh.polygons.size() ; i++ ) _polygons[i] = Polygon< Real >( i , mesh.masses[i] , mesh.polygons[i] );
 #pragma omp parallel for
 	for( int i=0 ; i<_vertices.size() ; i++ ) _vertices[i] /= (Real)Length( _vertices[i] );
-	auto Normal = [&] ( int t )
-	{
-		Point3D< Real > v[3] = { _vertices[ _polygons[t][0] ] , _vertices[ _polygons[t][1] ] , _vertices[ _polygons[t][2] ] };
-		return Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] );
-	};
 
-	// Determine if a triangle is covering a pole. 
-	// If so, preemptively split and store the pole index. 
-	{
-		int count = 0; 
-		for( int i=(int)_polygons.size()-1 ; i>=0 ; i-- )
-		{
-			int v0 = _polygons[i][0] , v1 = _polygons[i][1] , v2 = _polygons[i][2];
-
-			// 1. Find the plane containing this triangle 
-			Point3D< Real > n = Normal(i);
-			// Ignore triangles with very, very, very small area 
-			if( n[0]==0 && n[1]==0 && n[2]==0 ) continue;
-			n /= (Real)sqrt( Point3D< Real >::SquareNorm( n ) ); 
-
-			// No need to test if the normal is perpendicular to the y-axis 
-			if( !Point3D< Real >::Dot( n , Point3D<Real>( 0. , 1. , 0. ) ) ) continue;
-			Point3D< Real > v[] = { _vertices[ v0 ] , _vertices[ v1 ] , _vertices[ v2 ] };
-
-			Real d = -n[0]*v[0][0] - n[1]*v[0][1] - n[2]*v[0][2]; 
-
-			// 2. Compute intersection of P with the y-axis 
-			Point3D< Real > p; 
-			p[1] = - d / n[1]; 
-
-			// 3. Determine whether p is inside or outside of the triangle 
-			Real a[3];
-			BarycentricCoordinates< Real >( p , v[0] , v[1] , v[2] , a[0] , a[1] , a[2] );
-			if( a[0]>=0 && a[1]>=0 && a[2]>=0 ) 
-			{
-				// This triangle is at one of the poles. Manually split by placing a vertex at p. 
-				int vIdx = (int)_vertices.size();
-				_vertices.push_back( p/Length(p) );
-				if( vData ) vData->push_back( BarycentricInterpolate( a , (*vData)[v0] , (*vData)[v1] , (*vData)[v2] ) );
-
-				if( count>1 ) fprintf( stderr , "Error: Not expecting more than 2 poles!\n" ) , exit( 0 );
-				poles[count++] = vIdx; 
-
-				// Create new polygons 
-				Polygon< Real > p1( _polygons[i].sourceID , 0 , vIdx , v0 , v1 );
-				Polygon< Real > p2( _polygons[i].sourceID , 0 , vIdx , v1 , v2 );
-				Polygon< Real > p3( _polygons[i].sourceID , 0 , vIdx , v2 , v0 );
-				Real m1 , m2 , m3;
-				{
-					m1 = p1.area( _vertices ) , m2 = p2.area( _vertices ) , m3 = p3.area( _vertices );
-					Real m = m1+m2+m3;
-					if( m ) m1 /= m , m2 /= m , m3 /= m;
-					else m1 = m2 = m3 = (Real)1./3;
-					m1 *= _polygons[i].mass , m2 *= _polygons[i].mass , m3 *= _polygons[i].mass;
-				}
-				p1.mass = m1 , p2.mass = m2 , p3.mass = m3;
-				_polygons[i] = p1 , _polygons.push_back( p2 ) , _polygons.push_back( p3 );
-			}
-		}
-		if( count!=2 ) fprintf( stderr , "[ERROR] Couldn't find both poles\n" ) , exit( 0 );
-	}
-
+	std::vector< typename SphericalGeometry::Polygon< Real >::PlanarSources > pSources( _vertices.size() );
 	std::unordered_map< unsigned long long , int > vMap;
 	for( int i=(int)_polygons.size()-1 ; i>=0 ; i-- )
 	{
 		Polygon< Real > p = _polygons[i];
 		_polygons[i] = _polygons.back() , _polygons.pop_back();
-		_splitPolygon( p , vMap , poles , vData );
+		_splitPolygon( p , vMap , pSources , vData );
 	}
 }
 
@@ -929,12 +812,15 @@ void SphericalGeometry::Tessellation< Real >::createSGrid( SphericalGrid< Real >
 	}
 }
 
-template< class Real >
-template< class VertexData >
+template< class Real > template< class VertexData >
 void SphericalGeometry::Tessellation< Real >::_collapseCells( std::vector< VertexData >* vData )
 {
 	std::vector< std::vector< Polygon< Real > > > polygons( _resolution*_resolution );
-	for( int i=(int)_polygons.size()-1 ; i>=0 ; i-- ) polygons[ _polygons[i].theta*_resolution + _polygons[i].phi ].push_back( _polygons[i] ) , _polygons.pop_back();
+	for( int i=(int)_polygons.size()-1 ; i>=0 ; i-- ) 
+	{
+		if( _polygons[i].size() ) polygons[ _polygons[i].theta*_resolution + _polygons[i].phi ].push_back( _polygons[i] );
+		_polygons.pop_back();
+	}
 	auto EdgeKey = []( int v1 , int v2 )
 	{
 		unsigned long long _v1 = v1 , _v2 = v2;
@@ -950,8 +836,17 @@ void SphericalGeometry::Tessellation< Real >::_collapseCells( std::vector< Verte
 	{
 		Real mass = 0;
 		std::unordered_set< unsigned long long > eSet;
+		// Compute the total mass
 		for( int j=0 ; j<polygons[i].size() ; j++ ) mass += polygons[i][j].mass;
-		for( int j=0 ; j<polygons[i].size() ; j++ ) for( int k=0 ; k<polygons[i][j].size() ; k++ ) eSet.insert( EdgeKey( polygons[i][j][k] , polygons[i][j][k+1] ) );
+		// Get the set of half-edges for all polygons within the face
+		for( int j=0 ; j<polygons[i].size() ; j++ ) for( int k=0 ; k<polygons[i][j].size() ; k++ )
+		{
+			unsigned long long key = EdgeKey( polygons[i][j][k] , polygons[i][j][k+1] );
+			if( eSet.find( key )!=eSet.end() ) fprintf( stderr , "[WARNING] Edge is already occupied\n" );
+			eSet.insert(key);
+		}
+
+		// Extract the subset of boundary edges
 		std::vector< std::pair< int , int > > bEdges;
 		for( std::unordered_set< unsigned long long >::iterator i=eSet.begin() ; i!=eSet.end() ; i++ )
 		{
@@ -960,6 +855,8 @@ void SphericalGeometry::Tessellation< Real >::_collapseCells( std::vector< Verte
 			if( eSet.find( EdgeKey( v2 , v1 ) )==eSet.end() ) bEdges.push_back( std::pair< int , int >( v1 , v2 ) );
 		}
 		int pCount = 0;
+
+		// Stitch together the boundary edges (assuming each vertex has valence of exactly two)
 		while( bEdges.size() )
 		{
 			std::pair< int , int > e = bEdges.back() ; bEdges.pop_back();
@@ -987,11 +884,27 @@ void SphericalGeometry::Tessellation< Real >::_collapseCells( std::vector< Verte
 			}
 			pCount++;
 		}
-		if( pCount!=1 ) fprintf( stderr , "[WARNING] Found %d polygons in cell\n" , pCount );
 	}
+
 	std::vector< int > vMap( _vertices.size() , -1 );
 	int idx = 0;
 	for( int i=0 ; i<_polygons.size() ; i++ ) for( int j=0 ; j<_polygons[i].size() ; j++ ) if( vMap[ _polygons[i][j] ]==-1 ) vMap[ _polygons[i][j] ] = idx++;
+
+	// Because the mesh could have holes, we can only remove valence two vertices if they are not on the boundary
+	std::unordered_set< unsigned long long > eSet;
+	for( int i=0 ; i<_polygons.size() ; i++ ) for( int j=0 ; j<_polygons[i].size() ; j++ )
+	{
+		unsigned long long key = EdgeKey( _polygons[i][j] , _polygons[i][j+1] );
+		if( eSet.find( key )!=eSet.end() ) fprintf( stderr , "[WARNING] Edge is already occupied\n" );
+		eSet.insert(key);
+	}
+	std::vector< bool > boundaryVertex( _vertices.size() , false );
+	for( std::unordered_set< unsigned long long >::iterator i=eSet.begin() ; i!=eSet.end() ; i++ )
+	{
+		int v1 , v2;
+		FactorEdgeKey( *i , v1 , v2 );
+		if( eSet.find( EdgeKey( v2 , v1 ) )==eSet.end() ) boundaryVertex[v1] = boundaryVertex[v2] = true;
+	}
 
 	// Remove valence-2 vertices
 	std::vector< int > vCount( _vertices.size() , 0 );
@@ -1000,7 +913,7 @@ void SphericalGeometry::Tessellation< Real >::_collapseCells( std::vector< Verte
 	{
 		Polygon< Real > p( -1 , _polygons[i].mass );
 		p.theta = _polygons[i].theta , p.phi = _polygons[i].phi;
-		for( int j=0 ; j<_polygons[i].size() ; j++ ) if( vCount[ _polygons[i][j] ]>2 ) p.push_back( _polygons[i][j] );
+		for( int j=0 ; j<_polygons[i].size() ; j++ ) if( vCount[ _polygons[i][j] ]>2 || boundaryVertex[ _polygons[i][j] ] ) p.push_back( _polygons[i][j] );
 		_polygons[i] = p;
 	}
 
@@ -1049,11 +962,10 @@ void SphericalGeometry::Tessellation< Real >::write( const char* fileName , cons
 		p[i].resize( _polygons[i].size() );
 		for( int j=0 ; j<_polygons[i].size() ; j++ ) p[i][j] = _polygons[i][j];
 	}
-	PlyWritePolygons( fileName , v , p , PlyParametrizedColorVertex< float >::WriteProperties , PlyParametrizedColorVertex< float >::WriteComponents , PLY_BINARY_NATIVE , NULL , 0 );
+	PlyWritePolygons( fileName , v , p , PlyParametrizedColorVertex< float , Real >::WriteProperties , PlyParametrizedColorVertex< float , Real >::WriteComponents , PLY_BINARY_NATIVE , NULL , 0 );
 }
 
-template< class Real >
-template< typename PointScaleFunction >
+template< class Real > template< typename PointScaleFunction >
 void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , Real smooth , PointScaleFunction psFunction , bool binary ) const
 {
 	SphericalGrid< Real > sGrid( _resolution );
@@ -1066,8 +978,7 @@ void SphericalGeometry::Tessellation< Real >::writeGrid( const char* fileName , 
 }
 
 
-template< class Real >
-template< typename PointScaleFunction >
+template< class Real > template< typename PointScaleFunction >
 void SphericalGeometry::Tessellation< Real >::WriteGrid( const char* fileName , const SphericalGrid< Real >& sGrid , PointScaleFunction psFunction , bool binary )
 {
 	int res = sGrid.resolution();

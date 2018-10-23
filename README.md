@@ -1,4 +1,4 @@
-<CENTER><H1>M&ouml;bius Registration</H1></CENTER>
+<CENTER><H1>M&ouml;bius Registration (V2.0)</H1></CENTER>
 <CENTER>
 <A HREF="#LINKS">links</A>
 <A HREF="#EXECUTABLE">executables</A>
@@ -12,15 +12,16 @@ This distribution contains code for constructing and registering conformal spher
 <LI>Centering the parametrization with respect to M&ouml;bius inversions
 <LI>Tessellating the conformal parametrization to a regular equirectangular grid
 <LI>Performing fast spherical correlation to find the rotation/reflections that best aligning two centered parametrizations
-<LI>Using the registered parameerizations to compute dense correspondences from a source mesh to a target
+<LI>Using the registered parametrizations to compute dense correspondences from a source mesh to a target
 </UL>
 <HR>
 <A NAME="LINKS"><B>LINKS</B></A><br>
 <UL>
-<B>Papers</B> <A HREF="http://www.cs.jhu.edu/~misha/MyPapers/SGP12.pdf">[Kazhdan, Solomon, and Ben-Chen, 2012]</A> <A href="http://www.cs.jhu.edu/~misha/MyPapers/SGP18.pdf">[Baden, Crane, and Kazhdan, 2018]</A><br>
-<B>Binaries</B> <A href="MoebiusRegistration.x64.zip">Windows Executables</A> <A href="MoebiuseRegistration.x64.lib.zip">Windows libraries and DLLs</A><br>
-<B>Source Code</B> <A href="MoebiusRegistration.zip">ZIP</A> <A HREF="https://github.com/mkazhdan/MoebiusRegistration">GitHub</A><br>
-<B>License</B> <A href="license.txt">BSD</A><br>
+<B>Papers</B>: <A HREF="http://www.cs.jhu.edu/~misha/MyPapers/SGP12.pdf">[Kazhdan, Solomon, and Ben-Chen, 2012]</A> <A href="http://www.cs.jhu.edu/~misha/MyPapers/SGP18.pdf">[Baden, Crane, and Kazhdan, 2018]</A><br>
+<B>Binaries</B>: <A href="MoebiusRegistration.x64.zip">Windows Executables</A> <A href="MoebiusRegistration.x64.lib.zip">Windows libraries and DLLs</A><br>
+<B>Source Code</B>: <A href="MoebiusRegistration.zip">ZIP</A> <A HREF="https://github.com/mkazhdan/MoebiusRegistration">GitHub</A><br>
+<B>Older Versions</B>: <A HREF="../Version1.0">V1.0</A><BR>
+<B>License</B>: <A href="../license.txt">BSD</A><br>
 </UL>
 
 <HR>
@@ -34,12 +35,12 @@ This distribution contains code for constructing and registering conformal spher
 (1) Computes a conformal parametrization of a water-tight, genus-zero surface to the sphere using Conformalized Mean Curvature Flow <A HREF="http://www.cs.jhu.edu/~misha/MyPapers/SGP12.pdf">[Kazhdan, Solomon, and Ben-Chen, 2012]</A>; (2) cannonically centers the parametrization relative to M&ouml;bius inversions (or, more generally, the low-frequency spherical harmonics); and (3) tessellates the spherical mapping over a regular equirectangular grid.
 </SUMMARY>
 <dt><b>--in</b> &lt;<i>input mesh</i>&gt;</dt>
-<dd> This string is the name of the file from which the point set will be read.<br>
+<dd> This string is the name of the file from which the mesh will be read.<br>
 The file is assumed to be in the <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.<br>
 </dd>
 
 <dt>[<b>--out</b> &lt;<i>output triangle mesh</i>&gt;]</dt>
-<dd> This string is the name of the file to which the triangle mesh will be written.<br>
+<dd> This string is the name of the file to which the spherically parametrized mesh will be written.<br>
 The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format and will contain vertices with fields "x", "y", "z" (for the original vertex positions), "px", "py", "pz" (for the associated positions on the unit sphere), and "red", "green", "blue" (for the per-vertex colors). If the input contains colors, they will be copied to the output. Otherwise, colors are assigned using the surface normals.
 </dd>
 
@@ -95,6 +96,16 @@ The default value for this parameter is 256.
 The default value for this parameter is 0.0005.
 </dd>
 
+<dt>[<b>--c2i</b> &lt;<i>center to inversion type</i>&gt;]</dt>
+<dd> This integer value specifies how the gradient descent value is to be interpreted as a center of inversion. A value of <B>0</B> indicates that a trivial interpretation is to be used. A value of <B>1</B> indicates that a golden section search should be performed along the descent direction. A value of <B>2</B> indicates that the length of centering transformation should be rescaled using the metric for the Poincar&eacute; disk model.<BR>
+The default value for this parameter is 2.
+</dd>
+
+<dt>[<b>--gssTolerance</b> &lt;<i>golden section search tolerance</i>&gt;]</dt>
+<dd> This floating point value specifies the tolerance for the golden section search.<BR>
+The default value for this parameter is 0.000001.
+</dd>
+
 <dt>[<b>--random</b>]</dt>
 <dd> If enabled, this flag specifies that the vertices of the input mesh should be assigned random positions within the unit ball before performing the Conformalized Mean Curvature Flow. (But after extracting the stiffness matrix.)
 </dd>
@@ -104,7 +115,15 @@ The default value for this parameter is 0.0005.
 </dd>
 
 <dt>[<b>--collapse</b>]</dt>
-<dd> If enabled, the triangles are falling into a single equirectangular cell are collapsed into a single quad before extracting the spherical tessellation.
+<dd> If enabled, the triangles falling into a single equirectangular cell are collapsed into a single quad before extracting the spherical tessellation.
+</dd>
+
+<dt>[<b>--poly</b>]</dt>
+<dd> If enabled, a polygonal Laplacian is used. (Otherwise, all polygons will be triangulated using a minimal area triangulation.)
+</dd>
+
+<dt>[<b>--fill</b>]</dt>
+<dd> If enabled, each hole in the mesh will be filled in by adding a vertex which is at the average of the loop's vertices and adding triangles connecting the loop's edges to the average vertex.
 </dd>
 
 <dt>[<b>--ascii</b>]</dt>
@@ -157,29 +176,29 @@ The files are either both in the <a href="http://www.cc.gatech.edu/projects/larg
 <dt>[<b>--out</b> &lt;<i>output triangle mesh</i>&gt;]</dt>
 <dd> This string is the name of the file containing the source mesh with vertex positions on the target.<br>
 The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/ply.html">PLY</a> format.<br>
-Note that this output is only supported in the case that the input is in PLY format.
+[This output is only supported in the case that the input is in PLY format.]
 </dd>
 
 <dt>[<b>--res</b> &lt;<i>equirectangular grid resolution</i>&gt;]</dt>
 <dd> This integer value specifies the resolution of the equirectangular grid used to tessellate the spherical parametrization.<br>
 The default value for this parameter is 256.<br>
-Note that this is only used in the case that the intput is in PLY formate.
+[This is only used in the case that the intput is in PLY format.]
 </dd>
 
 <dt>[<b>--smooth</b> &lt;<i>spherical diffusion time</i>&gt;]</dt>
 <dd> This floating point value specifies the temporal duration for the heat diffusion used to antialias the sampled spherical function.<br>
 The default value for this parameter is 0.0005.<br>
-Note that this is only used in the case that the input is in PLY format.
+[This is only used in the case that the input is in PLY format.]
 </dd>
 
 <dt>[<b>--cType</b> &lt;<i>correlation type</i>&gt;]</dt>
-<dd> This integer value specifies how to perform correlation. A vlaue of <b>1</B> indicates that correlation should only be performed over the orthogonal transformations with determinant 1. A value of <B>2</B> indicates that the correlation should only be performed over the orthogonal transformations with determinant -1. A value of <B>3</B> indicates that the correlation should be performed over all orthogonal transformations.
+<dd> This integer value specifies how to perform correlation. A value of <b>1</B> indicates that correlation should only be performed over the orthogonal transformations with determinant 1. A value of <B>2</B> indicates that the correlation should only be performed over the orthogonal transformations with determinant -1. A value of <B>3</B> indicates that the correlation should be performed over all orthogonal transformations.<br>
 The default value for this parameter is 1.
 </dd>
 
 <dt>[<b>--correspondence</b>]</dt>
 <dd> If enabled, the output mesh is defined by using the triangulation of the source and setting the vertex positions to the corresponding positions on the target. Otherwise, the parameteric coordinates of the source are rotated.<BR>
-Note that this is only used in the case that the input is in PLY format.
+[This is only used in the case that the input is in PLY format.]
 </dd>
 
 <dt>[<b>--verbose</b>]</dt>
@@ -195,8 +214,22 @@ Note that this is only used in the case that the input is in PLY format.
 <HR>
 <A NAME="NOTES"><B>NOTES</B></A><br>
 <UL>
-<LI> The implementation of this code relies on the <A HREF="http://eigen.tuxfamily.org/">Eigen</A>, <A HREF="https://www.cs.dartmouth.edu/~geelong/soft/">SOFT</A>, and <A HREF="http://www.fftw.org/">FFTW</A> libraries. The source for Eigen and SOFT are included and should compile uncer both Windows and Linux. For the FFTW, Windows .lib and .dll files can be found <A href="MoebiuseRegistration.x64.lib.zip">here</A>.
+<LI> The implementation of this code relies on the <A HREF="http://eigen.tuxfamily.org/">Eigen</A>, <A HREF="https://www.cs.dartmouth.edu/~geelong/soft/">SOFT</A>, and <A HREF="http://www.fftw.org/">FFTW</A> libraries. The source for Eigen and SOFT are included and should compile under both Windows and Linux. For the FFTW, Windows .lib and .dll files can be found <A href="MoebiusRegistration.x64.lib.zip">here</A>.</UL>
+
+<HR>
+<DETAILS>
+<SUMMARY>
+<A NAME="CHANGES"><B>CHANGES</B></A><br>
+</SUMMARY>
+<UL>
+<A HREF="../Version2.0/"><B>Version 2.0</B></A>:
+<OL>
+<LI> Added support for general polygonal meshes using <A HREF="https://dl.acm.org/citation.cfm?doid=1964921.1964997">Discrete Laplacians on General Polygonal Meshes</A> via the <b>--poly</b> flag.
+<LI> Added support for genus-zero surfaces with boundaries by filling in the holes, via the <b>--fill</b> flag.
+</OL>
 </UL>
+</DETAILS>
+
 
 
 <HR>

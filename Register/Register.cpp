@@ -129,28 +129,28 @@ Point3D< Real > NearestPointOnTriangle( Point3D< Real > point , const Point3D< R
 		return triangle[0] * ( Real )( 1. - st[0] - st[1] ) + d[0] * st[0] + d[1] * st[1];
 	}
 }
-
-template< class Real > 
-void FindClosestTriangle( const Point3D< Real >& point , std::vector< TriangleIndex >& triangles , std::vector< Point3D< Real > >& vertices, Point3D<Real>& b , int& triangleIndex )
+template< class Real >
+Point3D< Real > NearestPointOnPolygon( Point3D< Real > point , const std::vector< Point3D< Real > > &vertices , TriangleIndex &tri , Real* b )
 {
-	triangleIndex = -1; 
-	Real distance = 1e10; 
-	Real _b[3]; 
-	for( int i=0 ; i<triangles.size() ; i++ ) 
-	{
-		Point3D<Real> tri[3]; 
-		for( int j=0 ; j<3 ; j++ ) tri[j] = vertices[ triangles[i][j] ];
+	MinimalAreaTriangulation< Real > MAT;
+	std::vector< TriangleIndex > triangles;
+	MAT.GetTriangulation( vertices , triangles );
 
-		Point3D< Real > p = NearestPointOnTriangle<Real>( point , tri , _b );
-		Real d = Point3D< Real >::SquareNorm( p - point );
-		if ( d < distance ) 
+	Real dist=-1 , _b[3];
+	for( int i=0 ; i<triangles.size() ; i++ )
+	{
+		Point3D< Real > triangle[] = { vertices[ triangles[i][0] ] , vertices[ triangles[i][1] ] , vertices[ triangles[i][2] ] };
+		Point3D< Real > p = NearestPointOnTriangle( point , triangle , _b );
+		Real d2 = Point3D< Real >::SquareNorm( p - point );
+		if( dist<0 || d2<dist )
 		{
-			distance = d;
-			triangleIndex = i;
-			for( int k=0 ; k<3 ; k++ ) b[k] = _b[k]; 
+			dist = d2;
+			b[0] = _b[0] , b[1] = _b[1] , b[2] = _b[2];
+			tri = triangles[i];
 		}
 	}
-	return;
+	if( dist<0 ) fprintf( stderr , "[ERROR] NearestPointOnTriangle: could not find nearest point\n" ) , exit( 0 );
+	return vertices[ tri[0] ] * b[0] + vertices[ tri[1] ] * b[1] + vertices[ tri[2] ] * b[2];
 }
 
 template< class Real >
@@ -269,29 +269,31 @@ void Execute( void )
 
 				int idx = _x * Resolution.value + _y;
 
+				TriangleIndex tri;
 				int tIdx = -1;
 				Real dist = -1;
 				Point3D< Real > b;
 				for( int j=0 ; j<targetCells[idx].size() ; j++ )
 				{
 					Real _b[3];
-					TriangleIndex tri = targetMesh.triangles[ targetCells[idx][j].sourceID ];
-					Point3D< Real > triangle[] = { targetMesh.vertices[ tri[0] ] , targetMesh.vertices[ tri[1] ] , targetMesh.vertices[ tri[2] ] };
-					Point3D< Real > p = NearestPointOnTriangle( sourceMesh.vertices[i] , triangle , _b );
+					const std::vector< int > poly = targetMesh.polygons[ targetCells[idx][j].sourceID ];
+					std::vector< Point3D< Real > > _vertices( poly.size() );
+					for( int k=0 ; k<poly.size() ; k++ ) _vertices[k] = targetMesh.vertices[ poly[k] ];
+
+					TriangleIndex _tri;
+					Point3D< Real > p = NearestPointOnPolygon( sourceMesh.vertices[i] , _vertices , _tri , _b );
+
 					Real d2 = Point3D< Real >::SquareNorm( p - sourceMesh.vertices[i] );
 					if( dist<0 || d2<dist )
 					{
 						dist = d2;
+						tri = TriangleIndex( poly[ _tri[0] ] , poly[ _tri[1] ] , poly[ _tri[2] ] );
 						tIdx = targetCells[idx][j].sourceID;
 						b = Point3D< Real >( _b[0] , _b[1] , _b[2] );
 					}
 				}
 				if( dist<0 ) fprintf( stderr , "[ERROR] Could not find a polygon in cell: %d %d\n" , _x , _y ) , exit( 0 );
-				{
-					TriangleIndex tri = targetMesh.triangles[ tIdx ];
-					sourceVertices[i] = targetVertices[ tri[0] ] * b[0] + targetVertices[ tri[1] ] * b[1] + targetVertices[ tri[2] ] * b[2];
-				}
-
+				sourceVertices[i] = targetVertices[ tri[0] ] * b[0] + targetVertices[ tri[1] ] * b[1] + targetVertices[ tri[2] ] * b[2];
 			}
 		}
 		sourceMesh.write( Out.value , sourceVertices , sourceColors );

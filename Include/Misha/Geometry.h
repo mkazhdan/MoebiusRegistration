@@ -1072,6 +1072,7 @@ public:
 	void GetTriangulation( const std::vector<Point3D<Real> >& vertices , std::vector<TriangleIndex>& triangles );
 };
 
+#if 0
 template<class Vertex>
 class Mesh
 {
@@ -1079,6 +1080,7 @@ public:
 	std::vector<Vertex> vertices;
 	std::vector<std::vector<int> > polygons;
 };
+#endif
 
 template< class Real >
 void SplitTriangle( std::vector< Point3D< Real > >& vertices , TriangleIndex triangle , Point3D< Real > pNormal , Real pOffset ,

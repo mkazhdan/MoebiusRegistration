@@ -44,10 +44,10 @@ class DiagonalBase : public EigenBase<Derived>
     template<typename DenseDerived>
     void evalTo(MatrixBase<DenseDerived> &other) const;
     template<typename DenseDerived>
-    inline void addTo(MatrixBase<DenseDerived> &other) const
+    void addTo(MatrixBase<DenseDerived> &other) const
     { other.diagonal() += diagonal(); }
     template<typename DenseDerived>
-    inline void subTo(MatrixBase<DenseDerived> &other) const
+    void subTo(MatrixBase<DenseDerived> &other) const
     { other.diagonal() -= diagonal(); }
 
     inline const DiagonalVectorType& diagonal() const { return derived().diagonal(); }
@@ -98,7 +98,7 @@ class DiagonalBase : public EigenBase<Derived>
 
 template<typename Derived>
 template<typename DenseDerived>
-inline void DiagonalBase<Derived>::evalTo(MatrixBase<DenseDerived> &other) const
+void DiagonalBase<Derived>::evalTo(MatrixBase<DenseDerived> &other) const
 {
   other.setZero();
   other.diagonal() = diagonal();

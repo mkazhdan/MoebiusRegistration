@@ -149,10 +149,6 @@ template<typename Derived> class MapBase<Derived, ReadOnlyAccessors>
       checkSanity();
     }
 
-    #ifdef EIGEN_MAPBASE_PLUGIN
-    #include EIGEN_MAPBASE_PLUGIN
-    #endif
-
   protected:
 
     void checkSanity() const
