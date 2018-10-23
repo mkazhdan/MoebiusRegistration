@@ -29,6 +29,7 @@ DAMAGE.
 #include <algorithm>
 #include <unordered_set>
 #include <random>
+#include "Misha/Timer.h"
 #include "Misha/Fourier.h"
 
 #define ALIGN_INVERSION_TO_CENTER
@@ -475,13 +476,22 @@ SphericalGeometry::FractionalLinearTransformation< Real > SphericalGeometry::Mes
 }
 
 template< class Real >
-int SphericalGeometry::Mesh< Real >::normalize( int iters , double cutOff , bool gaussNewton , const CenterToInversion& c2i , bool verbose )
+int SphericalGeometry::Mesh< Real >::normalize( int iters , double cutOff , bool gaussNewton , const CenterToInversion& c2i , int verbose )
 {
+	Timer timer;
 	for( int i=0 ; i<iters ; i++ )
 	{
 		Point3D< Real > c = center( );
-		if( verbose ) printf( "Moebius register[%d]: %8.2e\t(%8.1e %8.1e %8.1e)\n" , i , Length( c ) , c[0] , c[1] , c[2] );
-		if( Point3D< Real >::SquareNorm( c )<=cutOff*cutOff ) return i;
+		if( verbose>1 ) printf( "M-center[%d]: %8.2e\t(%8.1e %8.1e %8.1e)\n" , i , Length( c ) , c[0] , c[1] , c[2] );
+		if( Point3D< Real >::SquareNorm( c )<=cutOff*cutOff )
+		{
+			if( verbose==1 )
+			{
+				Point3D< Real > c = center( );
+				printf( "M-center[%d] %.2f(s): %8.2e\t(%8.1e %8.1e %8.1e)\n" , i , timer.elapsed() , Length( c ) , c[0] , c[1] , c[2] );
+			}
+			return i;
+		}
 		SquareMatrix< Real , 3 > D = dCenter( );
 		if( gaussNewton )
 		{
@@ -496,14 +506,14 @@ int SphericalGeometry::Mesh< Real >::normalize( int iters , double cutOff , bool
 	if( verbose )
 	{
 		Point3D< Real > c = center( );
-		printf( "Moebius register[%d]: %8.2e\t(%8.1e %8.1e %8.1e)\n" , iters , Length( c ) , c[0] , c[1] , c[2] );
+		printf( "M-center[%d] %.2f(s): %8.2e\t(%8.1e %8.1e %8.1e)\n" , iters , timer.elapsed() , Length( c ) , c[0] , c[1] , c[2] );
 	}
 	return iters;
 }
 
 template< class Real >
 template< unsigned int SHDegree >
-int SphericalGeometry::Mesh< Real >::normalizeSH( int iters , int advectionSteps , Real advectionStepSize , double cutOff , bool gaussNewton , bool verbose )
+int SphericalGeometry::Mesh< Real >::normalizeSH( int iters , int advectionSteps , Real advectionStepSize , double cutOff , bool gaussNewton , int verbose )
 {
 	static const unsigned int Dim = SphericalHarmonics::Dimension< SHDegree >() - 1;
 	auto SubPoint = [&]( const Point< Real , SphericalHarmonics::Dimension< SHDegree >() >& p )
@@ -518,20 +528,32 @@ int SphericalGeometry::Mesh< Real >::normalizeSH( int iters , int advectionSteps
 		for( int i=0 ; i<Dim ; i++ ) for( int j=0 ; j<Dim ; j++ ) _M(i,j) = M(i+1,j+1);
 		return _M;
 	};
-
+	
+	Timer timer;
 	for( int i=0 ; i<iters ; i++ )
 	{
 		Point< Real , SphericalHarmonics::Dimension< SHDegree >() > center;
 		Point< Real , Dim > c = SubPoint ( centerSH< SHDegree >() );
 
-		if( verbose )
+		if( verbose>1 )
 		{
-			printf( "Moebius register[%d]: %8.2e\t" , i , sqrt( Point< Real , Dim >::SquareNorm( c ) ) );
+			printf( "M-center[%d]: %8.2e\t" , i , sqrt( Point< Real , Dim >::SquareNorm( c ) ) );
 			printf( "( " );
 			for( int i=0 ; i<Dim ; i++ ) printf( " %8.1e" , c[i] );
 			printf( " )\n" );
 		}
-		if( Point< Real , Dim >::SquareNorm( c )<=cutOff*cutOff ) return i;
+		if( Point< Real , Dim >::SquareNorm( c )<=cutOff*cutOff )
+		{
+			if( verbose==1 )
+			{
+				Point< Real , Dim > c = SubPoint ( centerSH< SHDegree >() );
+				printf( "M-center[%d] %.2f(s): %8.2e\t" , i , timer.elapsed() , sqrt( Point< Real , Dim >::SquareNorm( c ) ) );
+				printf( "( " );
+				for( int i=0 ; i<Dim ; i++ ) printf( " %8.1e" , c[i] );
+				printf( " )\n" );
+			}
+			return i;
+		}
 
 		SquareMatrix< Real , Dim > D = SubMatrix( dCenterSH< SHDegree >() );
 		if( gaussNewton )
@@ -548,7 +570,7 @@ int SphericalGeometry::Mesh< Real >::normalizeSH( int iters , int advectionSteps
 	if( verbose )
 	{
 		Point< Real , Dim > c = SubPoint ( centerSH< SHDegree >() );
-		printf( "Moebius register[%d]: %8.2e\t" , iters , sqrt( Point< Real , Dim >::SquareNorm( c ) ) );
+		printf( "M-center[%d] %.2f(s): %8.2e\t" , iters , timer.elapsed() , sqrt( Point< Real , Dim >::SquareNorm( c ) ) );
 		printf( "( " );
 		for( int i=0 ; i<Dim ; i++ ) printf( " %8.1e" , c[i] );
 		printf( " )\n" );
@@ -758,7 +780,7 @@ void SphericalGeometry::Tessellation< Real >::_splitPolygon( SphericalGeometry::
 }
 
 template< class Real > template< class VertexData >
-void SphericalGeometry::Tessellation< Real >::_init( const SphericalGeometry::Mesh< Real >& mesh , std::vector< VertexData >* vData , int resolution , bool verbose )
+void SphericalGeometry::Tessellation< Real >::_init( const SphericalGeometry::Mesh< Real >& mesh , std::vector< VertexData >* vData , int resolution )
 {
 	_resolution = resolution;
 	_vertices = mesh.vertices;

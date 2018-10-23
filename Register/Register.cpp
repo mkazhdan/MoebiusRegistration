@@ -201,7 +201,7 @@ void Execute( void )
 			targetGrid.resize( Resolution.value );
 			verticesAndColors.resize( targetVertices.size() );
 			for( int i=0 ; i<targetVertices.size() ; i++ ) verticesAndColors[i].vertex = targetVertices[i] , verticesAndColors[i].color = targetColors[i];
-			SphericalGeometry::Tessellation< Real > targetTessellator( targetMesh , verticesAndColors , Resolution.value , Verbose.set );
+			SphericalGeometry::Tessellation< Real > targetTessellator( targetMesh , verticesAndColors , Resolution.value );
 			targetVertices.resize( verticesAndColors.size() ) , targetColors.resize( verticesAndColors.size() );
 			for( int i=0 ; i<verticesAndColors.size() ; i++ ) targetVertices[i] = verticesAndColors[i].vertex , targetColors[i] = verticesAndColors[i].color;
 			targetTessellator.createSGrid( targetGrid , Smooth.value );
@@ -211,7 +211,7 @@ void Execute( void )
 			sourceGrid.resize( Resolution.value );
 			verticesAndColors.resize( sourceVertices.size() );
 			for( int i=0 ; i<sourceVertices.size() ; i++ ) verticesAndColors[i].vertex = sourceVertices[i] , verticesAndColors[i].color = sourceColors[i];
-			SphericalGeometry::Tessellation< Real > sourceTessellator( sourceMesh , verticesAndColors , Resolution.value , Verbose.set );
+			SphericalGeometry::Tessellation< Real > sourceTessellator( sourceMesh , verticesAndColors , Resolution.value );
 			sourceTessellator.createSGrid( sourceGrid , Smooth.value );
 
 			if( Verbose.set ) printf( "Tessellated: %.2f(s)\n" , t.elapsed() );

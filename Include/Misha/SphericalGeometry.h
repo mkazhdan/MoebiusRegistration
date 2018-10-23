@@ -144,10 +144,10 @@ namespace SphericalGeometry
 		};
 
 		FractionalLinearTransformation< Real > normalizer( int iters , double cutOff , bool gaussNewton , bool verbose=false ) const;
-		int normalize( int iters , double cutOff , bool gaussNewton , const CenterToInversion& c2i=CenterToInversion() , bool verbose=false );
+		int normalize( int iters , double cutOff , bool gaussNewton , const CenterToInversion& c2i=CenterToInversion() , int verbose=0 );
 
 		template< unsigned int SHDegree >
-		int normalizeSH( int iters , int advectionSteps , Real advectionStepSize , double cutOff , bool gaussNewton , bool verbose=false );
+		int normalizeSH( int iters , int advectionSteps , Real advectionStepSize , double cutOff , bool gaussNewton , int verbose=0 );
 
 		static Point3D< Real > SphericalInvert( Point3D< Real > p , Point3D< Real > c );
 	protected:
@@ -216,10 +216,10 @@ namespace SphericalGeometry
 		template< class VertexData > void _splitPolygon   ( Polygon< Real > p ,             std::unordered_map< unsigned long long , int >& vMap , std::vector< typename Polygon< Real >::PlanarSources > &pSources , std::vector< VertexData >* vData ); 
 		template< class VertexData > void _splitPolygonPhi( Polygon< Real > p , int theta , std::unordered_map< unsigned long long , int >& vMap , std::vector< typename Polygon< Real >::PlanarSources > &pSources , std::vector< VertexData >* vData );
 		template< class VertexData > void _collapseCells( std::vector< VertexData >* vData );
-		template< class VertexData > void _init( const Mesh< Real >& mesh , std::vector< VertexData >* vData , int resolution , bool verbose );
+		template< class VertexData > void _init( const Mesh< Real >& mesh , std::vector< VertexData >* vData , int resolution );
 	public:
-		Tessellation( const Mesh< Real >& mesh , int resolution , bool verbose ){ _init( mesh , (std::vector< char >*)NULL , resolution , verbose ); }
-		template< class VertexData > Tessellation( const Mesh< Real >& mesh , std::vector< VertexData >& vData , int resolution , bool verbose ){ _init( mesh , &vData , resolution , verbose ); }
+		Tessellation( const Mesh< Real >& mesh , int resolution ){ _init( mesh , (std::vector< char >*)NULL , resolution ); }
+		template< class VertexData > Tessellation( const Mesh< Real >& mesh , std::vector< VertexData >& vData , int resolution ){ _init( mesh , &vData , resolution ); }
 
 		void createSGrid( SphericalGrid< Real >& sGrid , Real smoothValue ) const;
 

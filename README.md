@@ -135,6 +135,10 @@ The default value for this parameter is 0.000001.
 <dd> If enabled, details regarding the running times of the different stages of processing are output.
 </dd>
 
+<dt>[<b>--fullVerbose</b>]</dt>
+<dd> If enabled, even more details regarding the running times of the different stages of processing are output.
+</dd>
+
 </DETAILS>
 </dl>
 </ul>

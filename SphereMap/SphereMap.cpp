@@ -44,7 +44,7 @@ DAMAGE.
 cmdLineParameter< char* > In( "in" ) , Out( "out" ) , OutGrid( "outG" ) , OutTessellation( "outT" );
 cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , SHDegree( "degree" , 1 ) , AdvectionSteps( "aSteps" , 10 );
 cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , AdvectionStepSize( "aStepSize" , 0.05f );
-cmdLineReadable Verbose( "verbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , NoOrient( "noOrient" ) , Lump( "lump" ) , Polygonal( "poly" ) , FillHoles( "fill" );
+cmdLineReadable Verbose( "verbose" ) , FullVerbose( "fullVerbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , NoOrient( "noOrient" ) , Lump( "lump" ) , Polygonal( "poly" ) , FillHoles( "fill" );
 cmdLineParameter< int > CenterToInversion( "c2i" , 2 );
 cmdLineParameter< float > GSSTolerance( "gssTolerance" , (float)1e-6 ) , PoincareMaxNorm( "poincareMaxNorm" , 2.f );
 
@@ -78,8 +78,9 @@ void Usage( const char* ex )
 	printf( "\t[--%s]\n" , Lump.name );
 	printf( "\t[--%s]\n" , FillHoles.name );
 	printf( "\t[--%s]\n" , Verbose.name );
+	printf( "\t[--%s]\n" , FullVerbose.name );
 }
-cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , & Verbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &SHDegree , &AdvectionSteps , &AdvectionStepSize , &CenterToInversion , &GSSTolerance , &PoincareMaxNorm , &Lump , &Polygonal , &FillHoles , NULL };
+cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , &Verbose , &FullVerbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &SHDegree , &AdvectionSteps , &AdvectionStepSize , &CenterToInversion , &GSSTolerance , &PoincareMaxNorm , &Lump , &Polygonal , &FillHoles , NULL };
 
 template< class Real >
 Point3D< Real > NormalColor( Point3D< Real > n )
@@ -105,6 +106,7 @@ struct Mesh
 	virtual std::vector< Real > vertexAreas( void ) const = 0;
 	virtual void push_back( int v1 , int v2 , int v3 ) = 0;
 	virtual void pop_back( void ) = 0;
+	virtual void update( void ) {}
 
 	std::vector< Point3D< Real > > vertices;
 
@@ -320,7 +322,7 @@ public:
 		return areas;
 	}
 
-	void setEdges( void )
+	void update( void )
 	{
 		for( int i=0 ; i<polygons.size() ; i++ ) for( int j=0 ; j<polygons[i].size() ; j++ ) for( int k=0 ; k<polygons[i].size() ; k++ ) if( j!=k ) _edges[ EdgeKey( polygons[i][j] , polygons[i][k] ) ] = 0;
 		int idx = 0;
@@ -574,6 +576,21 @@ void CMCF( Mesh &mesh , int iters , bool lump )
 	M = L = mesh.stiffnessMatrix();
 	if( Randomize.set ) for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = RandomSpherePoint< Real >();
 	EigenSolverCholeskyLLt< Real >* solver = NULL;
+
+	auto SetStats = [&]( Real &deformationScale , Real &quasiConformalRatio , Real &radialDeviation )
+	{
+		Real differenceNorm=0 , oldNorm=0;
+#pragma omp parallel for
+		for( int j=0 ; j<D.rows ; j++ )
+		{
+			differenceNorm += Point3D< Real >::Dot( oldX[j]-vertices[j] , oldX[j]-vertices[j] ) * D[j][0].Value;
+			oldNorm += Point3D< Real >::Dot( oldX[j] , oldX[j] ) * D[j][0].Value;
+		}
+		deformationScale = sqrt( differenceNorm / oldNorm );
+		quasiConformalRatio = qcRatio( vertices );
+		radialDeviation = mesh.radialDeviation();
+	};
+	Timer timer;
 	for( int i=0 ; i<iters ; i++ )
 	{
 		double t;
@@ -617,24 +634,21 @@ void CMCF( Mesh &mesh , int iters , bool lump )
 		// Re-scale/center the mesh
 		mesh.pose() , mesh.makeUnitArea();
 
-		if( Verbose.set )
+		if( FullVerbose.set )
 		{
 			tt = Timer::Time() - tt;
-			Real differenceNorm=0 , oldNorm=0;
-
-#pragma omp parallel for
-			for( int j=0 ; j<D.rows ; j++ )
-			{
-				differenceNorm += Point3D< Real >::Dot( oldX[j]-vertices[j] , oldX[j]-vertices[j] ) * D[j][0].Value;
-				oldNorm += Point3D< Real >::Dot( oldX[j] , oldX[j] ) * D[j][0].Value;
-			}
-			Real deformationScale = sqrt( differenceNorm / oldNorm );
-
-			printf( "\rCMCF[%d / %d] %4.2f(s): D-Norm=%6.5f / QC-Ratio=%6.5f / R-Deviation=%6.5f    " , i+1 , iters , tt , deformationScale , qcRatio( vertices ) , mesh.radialDeviation() );
-			fflush(stdout);
+			Real deformationScale , quasiConformalRatio , radialDeviation;
+			SetStats( deformationScale , quasiConformalRatio , radialDeviation );
+			printf( "\rCMCF[%d / %d] %4.2f(s): D-Norm=%6.5f / QC-Ratio=%6.5f / R-Deviation=%6.5f    " , i+1 , iters , tt , deformationScale , quasiConformalRatio , radialDeviation );
 		}
 	}
-	if( Verbose.set && iters>0 ) printf( "\n" );
+	if( FullVerbose.set && iters>0 ) printf( "\n" );
+	if( Verbose.set && iters>0 )
+	{
+		Real deformationScale , quasiConformalRatio , radialDeviation;
+		SetStats( deformationScale , quasiConformalRatio , radialDeviation );
+		printf( "CMCF[%d] %4.2f(s): D-Norm=%6.5f / QC-Ratio=%6.5f / R-Deviation=%6.5f\n" , iters , timer.elapsed() , deformationScale , quasiConformalRatio , radialDeviation );
+	}
 	mesh.pose();
 
 	for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] = vertices[i] * scale + center;
@@ -646,24 +660,26 @@ void Center( SphericalGeometry::Mesh< Real >& mesh )
 {
 	static const int MAX_ITERATIONS = 50;
 	int iters;
+	int verbose = FullVerbose.set ? 2 : ( Verbose.set ? 1 : 0 );
 	switch( CenterToInversion.value )
 	{
-		case 0:  iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::CenterToInversion() , Verbose.set ) ; break;
-		case 1:  iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::GSSCenterToInversion( (Real)GSSTolerance.value ) , Verbose.set ) ; break;
-		default: iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::PoincareCenterToInversion( (Real)PoincareMaxNorm.value ) , Verbose.set ) ; break;
+		case 0:  iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::CenterToInversion() , verbose ) ; break;
+		case 1:  iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::GSSCenterToInversion( (Real)GSSTolerance.value ) , verbose ) ; break;
+		default: iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::PoincareCenterToInversion( (Real)PoincareMaxNorm.value ) , verbose ) ; break;
 	}
 	if( iters==MAX_ITERATIONS && CenterToInversion.value!=1 )
 	{
 		fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations, trying golden-section search\n" , MAX_ITERATIONS );
-		iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::GSSCenterToInversion( (Real)GSSTolerance.value ) , Verbose.set );
+		iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::GSSCenterToInversion( (Real)GSSTolerance.value ) , verbose );
 	}
 	if( iters==MAX_ITERATIONS ) fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations\n" , MAX_ITERATIONS );
 }
 template< unsigned int SHDegree , typename Real >
 void SHCenter( SphericalGeometry::Mesh< Real >& mesh )
 {
-	static const int MAX_ITERATIONS = 1000;
-	if( mesh.template normalizeSH< SHDegree >( MAX_ITERATIONS , AdvectionSteps.value , AdvectionStepSize.value , CutOff.value , true , Verbose.set )==MAX_ITERATIONS ) fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations\n" , MAX_ITERATIONS );
+	static const int MAX_ITERATIONS = 50;
+	int verbose = FullVerbose.set ? 2 : ( Verbose.set ? 1 : 0 );
+	if( mesh.template normalizeSH< SHDegree >( MAX_ITERATIONS , AdvectionSteps.value , AdvectionStepSize.value , CutOff.value , true , verbose )==MAX_ITERATIONS ) fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations\n" , MAX_ITERATIONS );
 }
 
 template< class Real >
@@ -677,7 +693,6 @@ void Execute( SphericalGeometry::Mesh< Real > &mesh , const std::vector< Point3D
 		if( SHDegree.value>=2 ) SHCenter< 2 >( mesh );
 		if( SHDegree.value>=3 ) SHCenter< 3 >( mesh );
 		if( SHDegree.value>=4 ) SHCenter< 4 >( mesh );
-		if( Verbose.set ) printf( "Centered: %.2f (s)\n" , t.elapsed() );
 	}
 
 	if( Out.set )
@@ -703,11 +718,11 @@ void Execute( SphericalGeometry::Mesh< Real > &mesh , const std::vector< Point3D
 			VertexAndColor operator / ( Real s ) const { return VertexAndColor( vertex/s , color/s ); }
 			VertexAndColor operator + ( const VertexAndColor& vc ) const { return VertexAndColor( vertex + vc.vertex , color + vc.color ); }
 		};
-		Timer t;
+		Timer timer;
 
 		std::vector< VertexAndColor > verticesAndColors( vertices.size() );
 		for( int i=0 ; i<vertices.size() ; i++ ) verticesAndColors[i].vertex = Point3D< Real >( vertices[i] ) , verticesAndColors[i].color = Point3D< Real >( colors[i] );
-		SphericalGeometry::Tessellation< Real > tessellator( mesh , verticesAndColors , Resolution.value , Verbose.set );
+		SphericalGeometry::Tessellation< Real > tessellator( mesh , verticesAndColors , Resolution.value );
 		if( Collapse.set ) tessellator.collapseCells( verticesAndColors );
 
 		if( OutTessellation.set )
@@ -734,7 +749,7 @@ void Execute( SphericalGeometry::Mesh< Real > &mesh , const std::vector< Point3D
 			}
 			delete[] ext;
 		}
-		if( Verbose.set ) printf( "Tessellated: %.2f(s)\n" , t.elapsed() );
+		if( Verbose.set ) printf( "Tessellated: %.2f(s)\n" , timer.elapsed() );
 	}
 }
 template< class Real >
@@ -780,16 +795,19 @@ void Execute( Mesh &mesh , const std::vector< Point3D< Real > > &colors )
 			c /= (int)loop.size();
 			mesh.vertices.push_back( c );
 		}
+		mesh.update();
 		if( Verbose.set ) printf( "Filled in %d holes: %.2f(s)\n" , (int)boundaryLoops.size() , t.elapsed() );
 	}
 	std::vector< Point3D< Real > > vertices = mesh.vertices;
+
+	CMCF< Real >( mesh , Iterations.value , Lump.set );
+
+	if( mesh.faces()!=fCount || mesh.vertices.size()!=vCount )
 	{
-		Timer t;
-		CMCF< Real >( mesh , Iterations.value , Lump.set );
-		if( Verbose.set ) printf( "Computed CMCF: %.2f(s)\n" , t.elapsed() );
+		while( mesh.faces()>fCount ) mesh.pop_back();
+		while( mesh.vertices.size()>vCount ) mesh.vertices.pop_back();
+		mesh.update();
 	}
-	while( mesh.faces()>fCount ) mesh.pop_back();
-	while( mesh.vertices.size()>vCount ) mesh.vertices.pop_back();
 
 	// Normalize the parameterization
 	{
@@ -830,6 +848,7 @@ int main( int argc , char* argv[] )
 		Usage( argv[0] );
 		return EXIT_FAILURE;
 	}
+	if( FullVerbose.set ) Verbose.set = true;
 	int fileType;
 	TriangleMesh< Real > tMesh;
 	PolygonMesh< Real > pMesh;
@@ -845,7 +864,7 @@ int main( int argc , char* argv[] )
 
 	if( Polygonal.set )
 	{
-		pMesh.setEdges();
+		pMesh.update();
 		pMesh.vertices.resize( vertices.size() );
 		for( int i=0 ; i<vertices.size() ; i++ ) pMesh.vertices[i] = Point3D< Real >( vertices[i].point );
 		if( !hasColor )
