@@ -408,6 +408,94 @@ public:
 	}
 };
 
+template< typename Real >
+struct QuasiConformalRatio
+{
+	static const Real ConformalCutOff;
+	std::vector< TriangleIndex > triangles;
+	std::vector< SquareMatrix< Real , 2 > > massInvs;
+	std::vector< Real > areas;
+
+	QuasiConformalRatio( const TriangleMesh< Real > &tMesh )
+	{
+		triangles = tMesh.triangles;
+		_init( tMesh.vertices );
+	}
+	QuasiConformalRatio( const PolygonMesh< Real > &pMesh )
+	{
+		MinimalAreaTriangulation< Real > MAT;
+		int count = 0;
+		for( int i=0 ; i<pMesh.polygons.size() ; i++ ) count += (int)pMesh.polygons[i].size()-2;
+		triangles.reserve( count );
+		for( int i=0 ; i<pMesh.polygons.size() ; i++ )
+		{
+			const std::vector< int >& poly = pMesh.polygons[i];
+			std::vector< Point3D< Real > > _vertices( poly.size() );
+			std::vector< TriangleIndex > _triangles;
+			for( int j=0 ; j<poly.size() ; j++ ) _vertices[j] = pMesh.vertices[ poly[j] ];
+			MAT.GetTriangulation( _vertices , _triangles );
+			for( int j=0 ; j<_triangles.size() ; j++ ) triangles.push_back( TriangleIndex( poly[ _triangles[j][0] ] , poly[ _triangles[j][1] ] , poly[ _triangles[j][2] ] ) );
+		}
+		_init( pMesh.vertices );
+	}
+	Real operator()( const std::vector< Point3D< Real > > &vertices ) const
+	{
+		Real error = 0 , area = 0;
+#pragma omp parallel for reduction( + : error , area )
+		for( int i=0 ; i<triangles.size() ; i++ )
+		{
+			Point3D< Real > v[] = { vertices[ triangles[i][0] ] , vertices[ triangles[i][1] ] , vertices[ triangles[i][2] ] };
+			SquareMatrix< Real , 2 > m = massInvs[i] * _MassMatrix( v );
+			Real det = m.determinant() , trace = m.trace();
+			trace /= 2;
+			if( det/4<=ConformalCutOff*ConformalCutOff ) continue;
+			// The eigenvectors of this matrix are the roots of
+			// P(x) = [x-d(0,0)]*[x-d(1,1)] - d(1,0)*d(0,1)
+			//      = x^2 - x * Tr(d) + Det(d)
+			// x = Tr(d)/2 +/- sqrt( Tr^2(d)/4 - Det(d) )
+			Real disc  = trace*trace-det;
+			if( disc<=Real(0) ) disc = 0;
+			else                disc = sqrt( disc );
+			Real x1 = trace - disc;
+			Real x2 = trace + disc;
+			if( x1<=0 ) continue;
+			Real tError = sqrt( x2/x1 ) * areas[i];
+			error += tError;
+			area += areas[i];
+		}
+		return error / area;
+	}
+
+protected:
+	static SquareMatrix< Real , 2 > _MassMatrix( const Point3D< Real > v[3] )
+	{
+		Point3D< Real > t[] = { v[1]-v[0] , v[2]-v[0] };
+		SquareMatrix< Real , 2 > mass;
+		for( int  j=0 ; j<2 ; j++ ) for( int k=0 ; k<2 ; k++ ) mass(j,k) = Point3D< Real >::Dot( t[j] , t[k] );
+		return mass;
+	}
+	void _init( const std::vector< Point3D< Real > > &vertices )
+	{
+		massInvs.resize( triangles.size() );
+		areas.resize( triangles.size() , 0 );
+
+		Real area = 0;
+#pragma omp parallel for reduction( + : area )
+		for( int i=0 ; i<triangles.size() ; i++ )
+		{
+			Point3D< Real > v[] = { vertices[ triangles[i][0] ] , vertices[ triangles[i][1] ] , vertices[ triangles[i][2] ] };
+			areas[i] = (Real)Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) ) / 2;
+			area += areas[i];
+			if( areas[i]<=ConformalCutOff ) continue;
+			massInvs[i] = _MassMatrix( v ).inverse();
+		}
+#pragma omp parallel for
+		for( int i=0 ; i<areas.size() ; i++ ) areas[i] /= area;
+
+	}
+};
+template< typename Real > const Real QuasiConformalRatio< Real >::ConformalCutOff = (Real)1e-15;
+
 int FaceSize( const TriangleIndex& tri ){ return 3; }
 int FaceSize( const std::vector< int > &poly ){ return (int)poly.size(); }
 
@@ -464,10 +552,11 @@ std::vector< std::vector< int > > BoundaryLoops( const TriangleMesh< Real > &mes
 template< typename Real >
 std::vector< std::vector< int > > BoundaryLoops( const PolygonMesh< Real > &mesh ){ return BoundaryLoops( mesh.polygons ); }
 
-template< class Real >
-void CMCF( Mesh< Real > &mesh , int iters , bool lump )
+template< class Real , typename Mesh >
+void CMCF( Mesh &mesh , int iters , bool lump )
 {
 	double stepSize = StepSize.value;
+	QuasiConformalRatio< Real > qcRatio( mesh );
 	std::vector< Point3D< Real > > &vertices = mesh.vertices;
 	std::vector< Point3D< Real > > b( vertices.size() ) , oldX( vertices.size() ) , n( vertices.size() );
 	Vector< Real > _b( b.size() ) , _x( vertices.size() );
@@ -527,20 +616,21 @@ void CMCF( Mesh< Real > &mesh , int iters , bool lump )
 		double mem = MemoryInfo::UsageMB();
 		// Re-scale/center the mesh
 		mesh.pose() , mesh.makeUnitArea();
-		double differenceNorm=0 , oldNorm=0;
-
-		for( int j=0 ; j<D.rows ; j++ )
-		{
-			differenceNorm += Point3D< Real >::Dot( oldX[j]-vertices[j] , oldX[j]-vertices[j] ) * D[j][0].Value;
-			oldNorm += Point3D< Real >::Dot( oldX[j] , oldX[j] ) * D[j][0].Value;
-		}
-		double deformationScale = sqrt( differenceNorm / oldNorm );
-		double radialDeviation = mesh.radialDeviation();
 
 		if( Verbose.set )
 		{
 			tt = Timer::Time() - tt;
-			printf( "\rCMCF[%d / %d] %4.2f(s): D-Norm=%6.5f / R-Deviation=%6.5f    " , i+1 , iters , tt , deformationScale , radialDeviation );
+			Real differenceNorm=0 , oldNorm=0;
+
+#pragma omp parallel for
+			for( int j=0 ; j<D.rows ; j++ )
+			{
+				differenceNorm += Point3D< Real >::Dot( oldX[j]-vertices[j] , oldX[j]-vertices[j] ) * D[j][0].Value;
+				oldNorm += Point3D< Real >::Dot( oldX[j] , oldX[j] ) * D[j][0].Value;
+			}
+			Real deformationScale = sqrt( differenceNorm / oldNorm );
+
+			printf( "\rCMCF[%d / %d] %4.2f(s): D-Norm=%6.5f / QC-Ratio=%6.5f / R-Deviation=%6.5f    " , i+1 , iters , tt , deformationScale , qcRatio( vertices ) , mesh.radialDeviation() );
 			fflush(stdout);
 		}
 	}
@@ -554,13 +644,18 @@ void CMCF( Mesh< Real > &mesh , int iters , bool lump )
 template< typename Real >
 void Center( SphericalGeometry::Mesh< Real >& mesh )
 {
-	static const int MAX_ITERATIONS = 1000;
+	static const int MAX_ITERATIONS = 50;
 	int iters;
 	switch( CenterToInversion.value )
 	{
 		case 0:  iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::CenterToInversion() , Verbose.set ) ; break;
 		case 1:  iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::GSSCenterToInversion( (Real)GSSTolerance.value ) , Verbose.set ) ; break;
 		default: iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::PoincareCenterToInversion( (Real)PoincareMaxNorm.value ) , Verbose.set ) ; break;
+	}
+	if( iters==MAX_ITERATIONS && CenterToInversion.value!=1 )
+	{
+		fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations, trying golden-section search\n" , MAX_ITERATIONS );
+		iters = mesh.normalize( MAX_ITERATIONS , CutOff.value , true , typename SphericalGeometry::Mesh< Real >::GSSCenterToInversion( (Real)GSSTolerance.value ) , Verbose.set );
 	}
 	if( iters==MAX_ITERATIONS ) fprintf( stderr , "[WARNING] Failed to meet centering threshold after %d iterations\n" , MAX_ITERATIONS );
 }
@@ -690,7 +785,7 @@ void Execute( Mesh &mesh , const std::vector< Point3D< Real > > &colors )
 	std::vector< Point3D< Real > > vertices = mesh.vertices;
 	{
 		Timer t;
-		CMCF( mesh , Iterations.value , Lump.set );
+		CMCF< Real >( mesh , Iterations.value , Lump.set );
 		if( Verbose.set ) printf( "Computed CMCF: %.2f(s)\n" , t.elapsed() );
 	}
 	while( mesh.faces()>fCount ) mesh.pop_back();

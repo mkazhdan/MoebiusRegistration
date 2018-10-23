@@ -127,7 +127,7 @@ namespace SphericalGeometry
 				Real len = (Real)Length(c);
 				if( len>=maxNorm ) c *= maxNorm / len;
 				_NormalizationFunctor nf( mesh , c );
-				return SphericalInversion< Real >( c * GoldenSectionSearch( nf , (Real)0 , (Real)1 , 1e-6/len ).second );
+				return SphericalInversion< Real >( c * GoldenSectionSearch( nf , (Real)0 , maxNorm , tolerance/len ).second );
 			}
 		};
 		struct PoincareCenterToInversion : public CenterToInversion
