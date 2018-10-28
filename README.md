@@ -1,4 +1,4 @@
-<CENTER><H1>M&ouml;bius Registration (V2.0)</H1></CENTER>
+<CENTER><H1>M&ouml;bius Registration (V2.5)</H1></CENTER>
 <CENTER>
 <A HREF="#LINKS">links</A>
 <A HREF="#EXECUTABLE">executables</A>
