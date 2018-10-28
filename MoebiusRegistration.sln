@@ -33,9 +33,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Misha", "Misha", "{6DAADF77
 		Include\Misha\FourierSO3.inl = Include\Misha\FourierSO3.inl
 		Include\Misha\Geometry.h = Include\Misha\Geometry.h
 		Include\Misha\Geometry.inl = Include\Misha\Geometry.inl
-		Include\Misha\HalfEdge.h = Include\Misha\HalfEdge.h
-		Include\Misha\HalfEdge.inl = Include\Misha\HalfEdge.inl
-		Include\Misha\HalfedgeDictionary.hh = Include\Misha\HalfedgeDictionary.hh
 		Include\Misha\MemoryUsage.h = Include\Misha\MemoryUsage.h
 		Include\Misha\MeshStuff.h = Include\Misha\MeshStuff.h
 		Include\Misha\Ply.h = Include\Misha\Ply.h
@@ -62,6 +59,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Misha", "Misha", "{6DAADF77
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Parametrization", "Parametrization\Parametrization.vcxproj", "{D97FED4E-7434-41AE-A1C0-6ADC7DD70A63}"
+	ProjectSection(ProjectDependencies) = postProject
+		{309F1A4F-6E10-4EA2-AA9D-65B8618ABB11} = {309F1A4F-6E10-4EA2-AA9D-65B8618ABB11}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

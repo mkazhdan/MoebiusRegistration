@@ -180,8 +180,8 @@ void Execute( void )
 	else if( !strcasecmp( sExt , "ply" ) && !strcasecmp( tExt , "ply" ) )
 	{
 		hasGeometry = true;
-		sourceMesh.read( In.values[0] , sourceVertices , sourceColors , Verbose.set , false );
-		targetMesh.read( In.values[1] , targetVertices , targetColors , Verbose.set , false );
+		sourceMesh.read( In.values[0] , sourceVertices , sourceColors , Verbose.set );
+		targetMesh.read( In.values[1] , targetVertices , targetColors , Verbose.set );
 		sourceMesh.makeUnitMass() , targetMesh.makeUnitMass();
 
 		struct VertexAndColor

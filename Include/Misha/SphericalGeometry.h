@@ -93,8 +93,8 @@ namespace SphericalGeometry
 
 		void write( const char* fileName , const std::vector< Point3D< Real > >& vertices ,                                                bool binary=true ) const;
 		void write( const char* fileName , const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& colors , bool binary=true ) const;
-		void read( const char* fileName , std::vector< Point3D< Real > >& vertices ,                                          bool verbose=false , bool normalize=true );
-		bool read( const char* fileName , std::vector< Point3D< Real > >& vertices , std::vector< Point3D< Real > >& colors , bool verbose=false , bool normalize=true );
+		void read( const char* fileName , std::vector< Point3D< Real > >& vertices ,                                          bool verbose=false );
+		bool read( const char* fileName , std::vector< Point3D< Real > >& vertices , std::vector< Point3D< Real > >& colors , bool verbose=false );
 
 		double area( int p ) const;
 		Point3D< Real > center( int p ) const;
@@ -151,7 +151,6 @@ namespace SphericalGeometry
 
 		static Point3D< Real > SphericalInvert( Point3D< Real > p , Point3D< Real > c );
 	protected:
-		void _normalize( bool verbose );
 		struct _NormalizationFunctor
 		{
 			const SphericalGeometry::Mesh< Real >& mesh;

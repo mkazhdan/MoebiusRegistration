@@ -30,23 +30,37 @@ DAMAGE.
 #include <stdlib.h>
 #include <omp.h>
 #include <map>
+#include <unordered_map>
 #include <Eigen/Dense>
 #include "Misha/CmdLineParser.h"
 #include "Misha/Ply.h"
 #include "Misha/SparseMatrix.h"
-#include "Misha/HalfEdge.h"
 #include "Misha/Solver.h"
 #include "Misha/Timer.h"
 #include "Misha/MemoryUsage.h"
-#include "Misha/MeshStuff.h"
 #include "Misha/SphericalGeometry.h"
 
+enum
+{
+	MESH_TYPE_TRIANGLE ,
+	MESH_TYPE_POLYGON ,
+	MESH_TYPE_TRIANGULATED_POLYGON ,
+	MESH_TYPE_COUNT
+};
+enum
+{
+	HOLE_FILL_TYPE_NONE ,
+	HOLE_FILL_TYPE_CENTER_TRIANGULATION ,
+	HOLE_FILL_TYPE_MINIMAL_AREA_TRIANGULATION ,
+	HOLE_FILL_TYPE_POLYGON ,
+	HOLE_FILL_TYPE_COUNT
+};
+const char *MeshTypeNames[] = { "triangle mesh" , "polygon mesh" , "implicitly triangulated polygon mesh" };
+const char* HoleFillTypeNames[] = { "none" , "center triangulation" , "minimal area triangulation" , "polygon" };
 cmdLineParameter< char* > In( "in" ) , Out( "out" ) , OutGrid( "outG" ) , OutTessellation( "outT" );
-cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , SHDegree( "degree" , 1 ) , AdvectionSteps( "aSteps" , 10 );
-cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , AdvectionStepSize( "aStepSize" , 0.05f );
-cmdLineReadable Verbose( "verbose" ) , FullVerbose( "fullVerbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , NoOrient( "noOrient" ) , Lump( "lump" ) , Polygonal( "poly" ) , FillHoles( "fill" );
-cmdLineParameter< int > CenterToInversion( "c2i" , 2 );
-cmdLineParameter< float > GSSTolerance( "gssTolerance" , (float)1e-6 ) , PoincareMaxNorm( "poincareMaxNorm" , 2.f );
+cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , SHDegree( "degree" , 1 ) , AdvectionSteps( "aSteps" , 10 ) , MeshType( "mesh" , MESH_TYPE_TRIANGLE+1 ) , HoleFillType( "fill" , HOLE_FILL_TYPE_NONE ) , CenterToInversion( "c2i" , 2 );
+cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , AdvectionStepSize( "aStepSize" , 0.05f ) , GSSTolerance( "gssTolerance" , (float)1e-6 ) , PoincareMaxNorm( "poincareMaxNorm" , 2.f );
+cmdLineReadable Verbose( "verbose" ) , FullVerbose( "fullVerbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , NoOrient( "noOrient" ) , Lump( "lump" ) , Spherical( "spherical" );
 
 void Usage( const char* ex )
 {
@@ -55,6 +69,10 @@ void Usage( const char* ex )
 	printf( "\t[--%s <output mesh>]\n" , Out.name );
 	printf( "\t[--%s <output spherical grid>]\n" , OutGrid.name );
 	printf( "\t[--%s <output spherical tessellation>]\n" , OutTessellation.name );
+	printf( "\t[--%s <mesh type>=%d]\n" , MeshType.name , MeshType.value );
+	for( int i=0 ; i<MESH_TYPE_COUNT ; i++ ) printf( "\t\t%d] %s\n" , i+1 , MeshTypeNames[i] );
+	printf( "\t[--%s <hole fill type>=%d]\n" , HoleFillType.name , HoleFillType.value );
+	for( int i=0 ; i<HOLE_FILL_TYPE_COUNT ; i++ ) printf( "\t\t%d] %s\n" , i , HoleFillTypeNames[i] );
 	printf( "\t[--%s <CMCF iterations>=%d]\n" , Iterations.name , Iterations.value );
 	printf( "\t[--%s <CMCF step size>=%f]\n" , StepSize.name , StepSize.value );
 	printf( "\t[--%s <Moebius centering cut-off>=%g]\n" , CutOff.name , CutOff.value );
@@ -74,13 +92,12 @@ void Usage( const char* ex )
 	printf( "\t[--%s]\n" , ASCII.name );
 	printf( "\t[--%s]\n" , Collapse.name );
 	printf( "\t[--%s]\n" , NoOrient.name );
-	printf( "\t[--%s]\n" , Polygonal.name );
+	printf( "\t[--%s]\n" , Spherical.name );
 	printf( "\t[--%s]\n" , Lump.name );
-	printf( "\t[--%s]\n" , FillHoles.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 	printf( "\t[--%s]\n" , FullVerbose.name );
 }
-cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , &Verbose , &FullVerbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &SHDegree , &AdvectionSteps , &AdvectionStepSize , &CenterToInversion , &GSSTolerance , &PoincareMaxNorm , &Lump , &Polygonal , &FillHoles , NULL };
+cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , &Verbose , &FullVerbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &SHDegree , &AdvectionSteps , &AdvectionStepSize , &CenterToInversion , &GSSTolerance , &PoincareMaxNorm , &Lump , &MeshType , &HoleFillType , &Spherical , NULL };
 
 template< class Real >
 Point3D< Real > NormalColor( Point3D< Real > n )
@@ -95,6 +112,33 @@ Point3D< Real > NormalColor( Point3D< Real > n )
 }
 
 template< typename Real >
+SquareMatrix< Real , 3 > MassMatrix( const Point3D< Real > vertices[] )
+{
+	SquareMatrix< Real , 3 > mass;
+	Real area = (Real)Length( Point3D< Real >::CrossProduct( vertices[1]-vertices[0] , vertices[2]-vertices[0] ) ) / 2;
+	mass(1,0) = mass(0,1) = mass(2,0) = mass(0,1) = mass(0,2) = mass(1,2) = mass(2,1) = area / 12;
+	mass(0,0) = mass(1,1) = mass(2,2) = area / 6;
+	return mass;
+}
+template< typename Real >
+SquareMatrix< Real , 3 > StiffnessMatrix( const Point3D< Real > vertices[] )
+{
+	SquareMatrix< Real , 3 > stiffness;
+	Real area = (Real)Length( Point3D< Real >::CrossProduct( vertices[1]-vertices[0] , vertices[2]-vertices[0] ) ) / 2;
+	for( int i=0 ; i<3 ; i++ )
+	{
+		int i0 = (i+1)%3 , i1 = (i+2)%3;
+		Real dot = Point3D< Real >::Dot( vertices[i0]-vertices[i] , vertices[i1]-vertices[i] );
+		stiffness(i0,i1) = stiffness(i1,i0) = - dot / area;
+	}
+	stiffness(0,0) = - ( stiffness(0,1) + stiffness(0,2) );
+	stiffness(1,1) = - ( stiffness(1,2) + stiffness(1,0) );
+	stiffness(2,2) = - ( stiffness(2,0) + stiffness(2,1) );
+	return stiffness;
+}
+
+
+template< typename Real >
 struct Mesh
 {
 	virtual int faces( void ) const = 0;
@@ -104,6 +148,7 @@ struct Mesh
 	virtual SparseMatrix< Real , int > massMatrix( bool lump ) const = 0;
 	virtual SparseMatrix< Real , int > stiffnessMatrix( void ) const = 0;
 	virtual std::vector< Real > vertexAreas( void ) const = 0;
+	virtual std::vector< Point3D< Real > > vertexNormals( void ) const = 0;
 	virtual void push_back( int v1 , int v2 , int v3 ) = 0;
 	virtual void pop_back( void ) = 0;
 	virtual void update( void ) {}
@@ -198,13 +243,55 @@ struct TriangleMesh : public Mesh< Real >
 	Point3D< Real > center( int t ) const { return ( vertices[ triangles[t][0] ] + vertices[ triangles[t][1] ] + vertices[ triangles[t][2] ] ) / 3; }
 	Real area( int t ) const { return (Real)Length( normal(t) )/2.; }
 
+#if 0
+	template< typename TriangleMatrixFunctor >
+	SparseMatrix< Real , int > matrix( TriangleMatrixFunctor F ) const
+#else
+	SparseMatrix< Real , int > matrix( SquareMatrix< Real , 3 >(*F)( const Point3D< Real > [] ) ) const
+#endif
+	{
+		struct Entry
+		{
+			Entry( void ) : row(-1) , col(-1) , value(0){}
+			Entry( int r , int c , Real v ) : row(r) , col(c) , value(v){}
+			int row , col;
+			Real value;
+		};
+		SparseMatrix< Real , int > M;
+		M.resize( (int)vertices.size() );
+		std::vector< std::vector< Entry > > entries( omp_get_max_threads() );
+#pragma omp parallel for
+		for( int t=0 ; t<triangles.size() ; t++ )
+		{
+			int thread = omp_get_thread_num();
+			Point3D< Real > v[] = { vertices[ triangles[t][0] ] , vertices[ triangles[t][1] ] , vertices[ triangles[t][2] ] };
+			SquareMatrix< Real , 3 > m = F( v );
+			for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) entries[thread].push_back( Entry( triangles[t][i] , triangles[t][j] , m(i,j) ) );
+		}
+		for( int i=0 ; i<entries.size() ; i++ ) for( int j=0 ; j<entries[i].size() ; j++ )	M.rowSizes[ entries[i][j].row ]++;
+#pragma omp parallel for
+		for( int i=0 ; i<M.rows ; i++ )
+		{
+			int rowSize = M.rowSizes[i];
+			M.rowSizes[i] = 0;
+			M.SetRowSize( i , rowSize );
+			M.rowSizes[i] = 0;
+		}
+		for( int i=0 ; i<entries.size() ; i++ ) for( int j=0 ; j<entries[i].size() ; j++ ) M[ entries[i][j].row ][ M.rowSizes[entries[i][j].row]++ ] = MatrixEntry< Real , int >( entries[i][j].col , entries[i][j].value );
+#pragma omp parallel for
+		for( int i=0 ; i<M.rows ; i++ )
+		{
+			std::unordered_map< int , Real > row;
+			for( int j=0 ; j<M.rowSizes[i] ; j++ ) row[ M[i][j].N ] += M[i][j].Value;
+			M.SetRowSize( i , (int)row.size() );
+			int j=0;
+			for( std::unordered_map< int , Real >::const_iterator iter=row.begin() ; iter!=row.end() ; iter++ ) M[i][j++] = MatrixEntry< Real , int >( iter->first , iter->second );
+		}
+		return M;
+	}
 	SparseMatrix< Real , int > massMatrix( bool lump ) const
 	{
-		EmptyHEMesh mesh;
-		mesh.SetHalfEdgeData( triangles );
-		SparseMatrix< Real , int > mass;
-		GetMatrices< Real , Real >( vertices , mesh , &mass , NULL , NULL , true , true );
-
+		SparseMatrix< Real , int > mass = matrix( MassMatrix );
 		if( lump )
 		{
 			for( int i=0 ; i<mass.rows ; i++ )
@@ -216,14 +303,8 @@ struct TriangleMesh : public Mesh< Real >
 		}
 		return mass;
 	}
-	SparseMatrix< Real , int > stiffnessMatrix( void ) const
-	{
-		EmptyHEMesh mesh;
-		mesh.SetHalfEdgeData( triangles );
-		SparseMatrix< Real , int > stiffness;
-		GetMatrices< Real , Real >( vertices , mesh , NULL , &stiffness , NULL , true , true );
-		return stiffness;
-	}
+	SparseMatrix< Real , int > stiffnessMatrix( void ) const { return matrix( StiffnessMatrix ); }
+	
 	std::vector< Real > vertexAreas( void ) const
 	{
 		std::vector< Real > areas( vertices.size() , 0 );
@@ -234,7 +315,18 @@ struct TriangleMesh : public Mesh< Real >
 		}
 		return areas;
 	}
-
+	std::vector< Point3D< Real > > vertexNormals( void ) const
+	{
+		std::vector< Point3D< Real > > normals( vertices.size() );
+		for( int t=0 ; t<triangles.size() ; t++ )
+		{
+			Point3D< Real > n = normal(t);
+			Real a = area(t);
+			n *= a / (Real)Length(n);
+			for( int j=0 ; j<3 ; j++ ) normals[ triangles[t][j] ] += n;
+		}
+		return normals;
+	}
 };
 
 template< typename Real >
@@ -321,6 +413,18 @@ public:
 		}
 		return areas;
 	}
+	std::vector< Point3D< Real > > vertexNormals( void ) const
+	{
+		std::vector< Point3D< Real > > normals( vertices.size() );
+		for( int p=0 ; p<polygons.size() ; p++ )
+		{
+			Point3D< Real > n = normal(p);
+			Real a = area(p);
+			n *= a / (Real)Length(n);
+			for( int j=0 ; j<polygons.size() ; j++ ) normals[ polygons[p][j] ] += n;
+		}
+		return normals;
+	}
 
 	void update( void )
 	{
@@ -345,7 +449,7 @@ public:
 		std::vector< Eigen::Triplet< double > > triplets;
 		for( int i=0 ; i<polygons.size() ; i++ )
 		{
-			Eigen::MatrixXd S = faceStiffness( i , lambda );
+			Eigen::MatrixXd S = faceMass1( i , lambda );
 			const std::vector< int > &p = polygons[i];
 			int pSize = (int)p.size();
 			for( int j=0 ; j<pSize ; j++ ) for( int k=0 ; k<pSize ; k++ )
@@ -379,7 +483,7 @@ public:
 		return D;
 	}
 
-	Eigen::MatrixXd faceStiffness( int p , double lambda ) const
+	Eigen::MatrixXd faceMass1( int p , double lambda ) const
 	{
 		std::vector< Point3D< double > > _vertices( polygons[p].size() );
 		for( int i=0 ; i<polygons[p].size() ; i++ ) _vertices[i] = Point3D< double >( vertices[ polygons[p][i] ] );
@@ -410,6 +514,202 @@ public:
 	}
 };
 
+// Triangulate the polygons by adding the mid-point but constrain the value at the mid-point to be the average of the values along the vertices of the face
+template< typename Real >
+struct TriangulatedPolygonMesh : public Mesh< Real >
+{
+	std::vector< std::vector< int > > polygons;
+	using Mesh< Real >::center;
+	using Mesh< Real >::vertices;
+
+	int faces( void ) const { return (int)polygons.size(); }
+	void push_back( int v1 , int v2 , int v3 ){ polygons.push_back( std::vector< int >( { v1 , v2 , v3 } ) ); }
+	void pop_back( void ){ polygons.pop_back(); }
+
+	Point3D< Real > normal( int p ) const
+	{
+		Point3D< Real > n;
+		for( int i=0 ; i<polygons[p].size() ; i++ )
+		{
+			Point3D< Real > b = vertices[ polygons[p][ (i+1)%polygons[p].size() ] ] + vertices[ polygons[p][i] ];
+			Point3D< Real > e = vertices[ polygons[p][ (i+1)%polygons[p].size() ] ] - vertices[ polygons[p][i] ];
+			n += Point3D< Real >::CrossProduct( b , e ) / 2;
+		}
+		return n;
+	}
+	Point3D< Real > center( int p ) const
+	{
+		Point3D< Real > c;
+		for( int i=0 ; i<polygons[p].size() ; i++ ) c += vertices[ polygons[p][i] ];
+		return c / (int)polygons[p].size();
+	}
+	Real area( int p ) const
+	{
+		if( polygons[p].size()==3 )
+		{
+			Point3D< Real > v[] = { vertices[ polygons[p][0] ] , vertices[ polygons[p][1] ] , vertices[ polygons[p][2] ] };
+			Real a = (Real)Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) )/2;
+			return a;
+		}
+		else
+		{
+			Real a = 0;
+			Point3D< Real > c = center(p);
+			for( int i0=0 ; i0<polygons[p].size() ; i0++ )
+			{
+				int i1 = (i0+1)%polygons[p].size();
+				Point3D< Real > v[] = { vertices[ polygons[p][i0] ] , vertices[ polygons[p][i1] ] , c };
+				a += (Real)Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) )/2;
+			}
+			return a;
+		}
+	}
+
+	std::vector< Real > vertexAreas( void ) const
+	{
+		std::vector< Real > areas( vertices.size() , 0 );
+		for( int p=0 ; p<polygons.size() ; p++ )
+		{
+			if( polygons[p].size()==3 )
+			{
+				Point3D< Real > v[] = { vertices[ polygons[p][0] ] , vertices[ polygons[p][1] ] , vertices[ polygons[p][2] ] };
+				Real a = (Real)Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) )/2;
+				a /= 3;
+				for( int i=0 ; i<3 ; i++ ) areas[ polygons[p][i] ] += a;
+			}
+			else
+			{
+				Point3D< Real > c = center(p);
+				for( int i0=0 ; i0<polygons[p].size() ; i0++ )
+				{
+					int i1 = (i0+1)%polygons[p].size();
+					Point3D< Real > v[] = { vertices[ polygons[p][i0] ] , vertices[ polygons[p][i1] ] , c };
+					Real a = (Real)Length( Point3D< Real >::CrossProduct( v[1]-v[0] , v[2]-v[0] ) )/2;
+					a /= 2;
+					areas[ polygons[p][i0] ] += a , areas[ polygons[p][i1] ] += a;
+				}
+			}
+		}
+		return areas;
+	}
+	std::vector< Point3D< Real > > vertexNormals( void ) const
+	{
+		std::vector< Point3D< Real > > normals( vertices.size() );
+		for( int p=0 ; p<polygons.size() ; p++ )
+		{
+			Point3D< Real > n = normal(p);
+			Real a = area(p);
+			n *= a / (Real)Length(n);
+			for( int j=0 ; j<polygons.size() ; j++ ) normals[ polygons[p][j] ] += n;
+		}
+		return normals;
+	}
+
+	SparseMatrix< Real , int > massMatrix( bool lump ) const
+	{
+		SparseMatrix< Real , int > mass = matrix( MassMatrix );
+		if( lump )
+		{
+#pragma omp parallel for
+			for( int i=0 ; i<mass.rows ; i++ )
+			{
+				Real sum = 0;
+				for( int j=0 ; j<mass.rowSizes[i] ; j++ ){ sum += mass[i][j].Value ; mass[i][j].Value = 0; }
+				for( int j=0 ; j<mass.rowSizes[i] ; j++ ) if( mass[i][j].N==i ){ mass[i][j].Value = sum ; break; }
+			}
+		}
+		return mass;
+	}
+	SparseMatrix< Real , int > stiffnessMatrix( void ) const { return matrix( StiffnessMatrix ); }
+
+#if 0
+	template< typename TriangleMatrixFunctor >
+	SparseMatrix< Real , int > matrix( TriangleMatrixFunctor F ) const
+#else
+	SparseMatrix< Real , int > matrix( SquareMatrix< Real , 3 >(*F)( const Point3D< Real > [] ) ) const
+#endif
+	{
+		struct Entry
+		{
+			Entry( void ) : row(-1) , col(-1) , value(0){}
+			Entry( int r , int c , Real v ) : row(r) , col(c) , value(v){}
+			int row , col;
+			Real value;
+		};
+		SparseMatrix< Real , int > M;
+		M.resize( (int)vertices.size() );
+		std::vector< std::vector< Entry > > entries( omp_get_max_threads() );
+#pragma omp parallel for
+		for( int p=0 ; p<polygons.size() ; p++ )
+		{
+			int thread = omp_get_thread_num();
+			int pSize = (int)polygons[p].size();
+			Eigen::MatrixXd m = faceMatrix( p , F );
+			for( int i=0 ; i<pSize ; i++ ) for( int j=0 ; j<pSize ; j++ ) entries[thread].push_back( Entry( polygons[p][i] , polygons[p][j] , m(i,j) ) );
+		}
+		for( int i=0 ; i<entries.size() ; i++ ) for( int j=0 ; j<entries[i].size() ; j++ )	M.rowSizes[ entries[i][j].row ]++;
+#pragma omp parallel for
+		for( int i=0 ; i<M.rows ; i++ )
+		{
+			int rowSize = M.rowSizes[i];
+			M.rowSizes[i] = 0;
+			M.SetRowSize( i , rowSize );
+			M.rowSizes[i] = 0;
+		}
+		for( int i=0 ; i<entries.size() ; i++ ) for( int j=0 ; j<entries[i].size() ; j++ ) M[ entries[i][j].row ][ M.rowSizes[entries[i][j].row]++ ] = MatrixEntry< Real , int >( entries[i][j].col , entries[i][j].value );
+#pragma omp parallel for
+		for( int i=0 ; i<M.rows ; i++ )
+		{
+			std::unordered_map< int , Real > row;
+			for( int j=0 ; j<M.rowSizes[i] ; j++ ) row[ M[i][j].N ] += M[i][j].Value;
+			M.SetRowSize( i , (int)row.size() );
+			int j=0;
+			for( std::unordered_map< int , Real >::const_iterator iter=row.begin() ; iter!=row.end() ; iter++ ) M[i][j++] = MatrixEntry< Real , int >( iter->first , iter->second );
+		}
+		return M;
+	}
+
+	Eigen::MatrixXd centerConstraintMatrix( int p ) const
+	{
+		int pSize = (int)polygons[p].size();
+		Eigen::MatrixXd C(pSize+1,pSize);
+		for( int i=0 ; i<C.rows() ; i++ ) for( int j=0 ; j<C.cols() ; j++ ) C(i,j) = 0;
+		for( int i=0 ; i<pSize ; i++ ) C(i,i) = 1 , C(pSize,i) = 1./pSize;
+		return C;
+	}
+
+	template< typename TriangleMatrixFunctor >
+	Eigen::MatrixXd faceMatrix( int p , TriangleMatrixFunctor F ) const
+	{
+		int pSize = (int)polygons[p].size();
+		if( pSize==3 )
+		{
+			Eigen::MatrixXd M( pSize , pSize );
+			Point3D< Real > v[] = { vertices[ polygons[p][0] ] , vertices[ polygons[p][1] ] , vertices[ polygons[p][2] ] };
+			SquareMatrix< Real , 3 > m = F( v );
+			for( int i=0 ; i<3 ; i++ ) for( int j=0 ; j<3 ; j++ ) M(i,j) = m(i,j);
+			return M;
+		}
+		else
+		{
+			Eigen::MatrixXd M( pSize+1 , pSize+1 ) , C = centerConstraintMatrix(p);
+			for( int i=0 ; i<M.rows() ; i++ ) for( int j=0 ; j<M.cols() ; j++ ) M(i,j) = 0;
+
+			Point3D< Real > c = center(p);
+			int idx[] = { 0 , 0 , pSize };
+			for( int i0=0 ; i0<pSize ; i0++ )
+			{
+				int i1 = (i0+1)%pSize;
+				idx[0] = i0 , idx[1] = i1;
+				Point3D< Real > v[] = { vertices[ polygons[p][i0] ] , vertices[ polygons[p][i1] ] , c };
+				SquareMatrix< Real , 3 > m = F( v );
+				for( int j=0 ; j<3 ; j++ ) for( int k=0 ; k<3 ; k++ ) M( idx[j] , idx[k] ) += m(j,k);
+			}
+			return C.transpose() * M * C;
+		}
+	}
+};
+
 template< typename Real >
 struct QuasiConformalRatio
 {
@@ -418,28 +718,34 @@ struct QuasiConformalRatio
 	std::vector< SquareMatrix< Real , 2 > > massInvs;
 	std::vector< Real > areas;
 
-	QuasiConformalRatio( const TriangleMesh< Real > &tMesh )
+	QuasiConformalRatio( const            TriangleMesh< Real > & tMesh , int tCount ) : QuasiConformalRatio( & tMesh.vertices[0] , & tMesh.triangles[0] , tCount ){ }
+	QuasiConformalRatio( const             PolygonMesh< Real > & pMesh , int tCount ) : QuasiConformalRatio( & pMesh.vertices[0] , & pMesh.polygons [0] , tCount ){ }
+	QuasiConformalRatio( const TriangulatedPolygonMesh< Real > &tpMesh , int tCount ) : QuasiConformalRatio( &tpMesh.vertices[0] , &tpMesh.polygons [0] , tCount ){ }
+
+	QuasiConformalRatio( const Point3D< Real > *v , const TriangleIndex *t , int tCount )
 	{
-		triangles = tMesh.triangles;
-		_init( tMesh.vertices );
+		triangles.resize( tCount );
+		for( int i=0 ; i<tCount ; i++ ) triangles[i] = t[i];
+		_init( v );
 	}
-	QuasiConformalRatio( const PolygonMesh< Real > &pMesh )
+	QuasiConformalRatio( const Point3D< Real > *v , const std::vector< int > *p , int pCount )
 	{
 		MinimalAreaTriangulation< Real > MAT;
 		int count = 0;
-		for( int i=0 ; i<pMesh.polygons.size() ; i++ ) count += (int)pMesh.polygons[i].size()-2;
+		for( int i=0 ; i<pCount ; i++ ) count += (int)p[i].size()-2;
 		triangles.reserve( count );
-		for( int i=0 ; i<pMesh.polygons.size() ; i++ )
+		for( int i=0 ; i<pCount ; i++ )
 		{
-			const std::vector< int >& poly = pMesh.polygons[i];
+			const std::vector< int >& poly = p[i];
 			std::vector< Point3D< Real > > _vertices( poly.size() );
 			std::vector< TriangleIndex > _triangles;
-			for( int j=0 ; j<poly.size() ; j++ ) _vertices[j] = pMesh.vertices[ poly[j] ];
+			for( int j=0 ; j<poly.size() ; j++ ) _vertices[j] = v[ poly[j] ];
 			MAT.GetTriangulation( _vertices , _triangles );
 			for( int j=0 ; j<_triangles.size() ; j++ ) triangles.push_back( TriangleIndex( poly[ _triangles[j][0] ] , poly[ _triangles[j][1] ] , poly[ _triangles[j][2] ] ) );
 		}
-		_init( pMesh.vertices );
+		_init( v );
 	}
+
 	Real operator()( const std::vector< Point3D< Real > > &vertices ) const
 	{
 		Real error = 0 , area = 0;
@@ -476,7 +782,7 @@ protected:
 		for( int  j=0 ; j<2 ; j++ ) for( int k=0 ; k<2 ; k++ ) mass(j,k) = Point3D< Real >::Dot( t[j] , t[k] );
 		return mass;
 	}
-	void _init( const std::vector< Point3D< Real > > &vertices )
+	void _init( const Point3D< Real > *vertices )
 	{
 		massInvs.resize( triangles.size() );
 		areas.resize( triangles.size() , 0 );
@@ -553,12 +859,14 @@ template< typename Real >
 std::vector< std::vector< int > > BoundaryLoops( const TriangleMesh< Real > &mesh ){ return BoundaryLoops( mesh.triangles ); }
 template< typename Real >
 std::vector< std::vector< int > > BoundaryLoops( const PolygonMesh< Real > &mesh ){ return BoundaryLoops( mesh.polygons ); }
+template< typename Real >
+std::vector< std::vector< int > > BoundaryLoops( const TriangulatedPolygonMesh< Real > &mesh ){ return BoundaryLoops( mesh.polygons ); }
 
 template< class Real , typename Mesh >
-void CMCF( Mesh &mesh , int iters , bool lump )
+void CMCF( Mesh &mesh , int iters , bool lump , int fCount )
 {
 	double stepSize = StepSize.value;
-	QuasiConformalRatio< Real > qcRatio( mesh );
+	QuasiConformalRatio< Real > qcRatio( mesh , fCount );
 	std::vector< Point3D< Real > > &vertices = mesh.vertices;
 	std::vector< Point3D< Real > > b( vertices.size() ) , oldX( vertices.size() ) , n( vertices.size() );
 	Vector< Real > _b( b.size() ) , _x( vertices.size() );
@@ -610,12 +918,10 @@ void CMCF( Mesh &mesh , int iters , bool lump )
 		}
 
 		t = Timer::Time();
-
 		// If this is the first solve perform both the symbolic and numerical factorization.
 		if( !solver ) solver = new EigenSolverCholeskyLLt< Real >( M );
 		// Otherwise, if the system matrix has changed, update the numerical factorization.
 		else solver->update( M );
-
 		double sTime1 = Timer::Time()-t;
 
 		t = Timer::Time();
@@ -628,8 +934,8 @@ void CMCF( Mesh &mesh , int iters , bool lump )
 #pragma omp parallel for num_threads( Threads.value )
 			for( int j=0 ; j<vertices.size() ; j++ ) vertices[j][d] = _x[j];
 		}
-
 		double sTime2 = Timer::Time()-t;
+
 		double mem = MemoryInfo::UsageMB();
 		// Re-scale/center the mesh
 		mesh.pose() , mesh.makeUnitArea();
@@ -639,7 +945,7 @@ void CMCF( Mesh &mesh , int iters , bool lump )
 			tt = Timer::Time() - tt;
 			Real deformationScale , quasiConformalRatio , radialDeviation;
 			SetStats( deformationScale , quasiConformalRatio , radialDeviation );
-			printf( "\rCMCF[%d / %d] %4.2f(s): D-Norm=%6.5f / QC-Ratio=%6.5f / R-Deviation=%6.5f    " , i+1 , iters , tt , deformationScale , quasiConformalRatio , radialDeviation );
+			printf( "CMCF[%d / %d] %4.2f = %4.2f + %4.2f + %4.2f(s): D-Norm=%6.5f / QC-Ratio=%6.5f / R-Deviation=%6.5f\r" , i+1 , iters , tt , mTime , sTime1 , sTime2 , deformationScale , quasiConformalRatio , radialDeviation );
 		}
 	}
 	if( FullVerbose.set && iters>0 ) printf( "\n" );
@@ -697,14 +1003,27 @@ void Execute( SphericalGeometry::Mesh< Real > &mesh , const std::vector< Point3D
 
 	if( Out.set )
 	{
-		std::vector< PlyParametrizedColorVertex< float , Real > > outVertices( vertices.size() );
-		for( int i=0 ; i<vertices.size() ; i++ )
+		if( Spherical.set )
 		{
-			outVertices[i].point = Point3D< float >( vertices[i] );
-			outVertices[i].color = Point3D< float >( colors[i] );
-			outVertices[i].param = mesh.vertices[i];
+			std::vector< PlyColorVertex< float > > outVertices( vertices.size() );
+			for( int i=0 ; i<vertices.size() ; i++ )
+			{
+				outVertices[i].point = Point3D< float >( mesh.vertices[i] );
+				outVertices[i].color = Point3D< float >( colors[i] );
+			}
+			PlyWritePolygons( Out.value , outVertices , mesh.polygons , PlyColorVertex< float >::WriteProperties , PlyColorVertex< float >::WriteComponents , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NULL , 0 );
 		}
-		PlyWritePolygons( Out.value , outVertices , mesh.polygons , PlyParametrizedColorVertex< float , Real >::WriteProperties , PlyParametrizedColorVertex< float , Real >::WriteComponents , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NULL , 0 );
+		else
+		{
+			std::vector< PlyParametrizedColorVertex< float , Real > > outVertices( vertices.size() );
+			for( int i=0 ; i<vertices.size() ; i++ )
+			{
+				outVertices[i].point = Point3D< float >( vertices[i] );
+				outVertices[i].color = Point3D< float >( colors[i] );
+				outVertices[i].param = mesh.vertices[i];
+			}
+			PlyWritePolygons( Out.value , outVertices , mesh.polygons , PlyParametrizedColorVertex< float , Real >::WriteProperties , PlyParametrizedColorVertex< float , Real >::WriteComponents , ASCII.set ? PLY_ASCII : PLY_BINARY_NATIVE , NULL , 0 );
+		}
 	}
 
 	if( OutGrid.set || OutTessellation.set )
@@ -779,28 +1098,63 @@ void Execute( PolygonMesh< Real > &mesh , const std::vector< Point3D< Real > > &
 	}
 	Execute( sMesh , vertices , colors );
 }
+template< class Real >
+void Execute( TriangulatedPolygonMesh< Real > &mesh , const std::vector< Point3D< Real > > &vertices , const std::vector< Point3D< Real > > &colors )
+{
+	SphericalGeometry::Mesh< Real > sMesh;
+	{
+		sMesh = SphericalGeometry::Mesh< Real >( vertices , mesh.vertices , mesh.polygons );
+		sMesh.makeUnitMass();
+	}
+	Execute( sMesh , vertices , colors );
+}
+template< typename Real >
+void HoleFillCenterTriangulation( Mesh< Real > &mesh , const std::vector< int > &loop )
+{
+	Point3D< Real > c;
+	for( int j=0 ; j<loop.size() ; j++ ) mesh.push_back( loop[j] , loop[(j+1)%loop.size()] , (int)mesh.vertices.size() ) , c += mesh.vertices[ loop[j] ];
+	c /= (int)loop.size();
+	mesh.vertices.push_back( c );
+}
+template< typename Real >
+void HoleFillMinimalAreaTriangulation( Mesh< Real > &mesh , const std::vector< int > &loop )
+{
+	MinimalAreaTriangulation< Real > MAT;
+	std::vector< TriangleIndex > triangles( loop.size()-2 );
+	std::vector< Point3D< Real > > vertices( loop.size() );
+	for( int j=0 ; j<loop.size() ; j++ ) vertices[j] = mesh.vertices[ loop[j] ];
+	MAT.GetTriangulation( vertices , triangles );
+	for( int j=0 ; j<triangles.size() ; j++ ) mesh.push_back( loop[ triangles[j][0] ] , loop[ triangles[j][1] ] , loop[ triangles[j][2] ] );;
+}
+template< typename Real > void HoleFillPolygon(            TriangleMesh< Real >  &tMesh , const std::vector< int > &loop ){ fprintf( stderr , "[WARNING] Polygon hole-filling not supported for triangle mesh\n" ); }
+template< typename Real > void HoleFillPolygon(             PolygonMesh< Real >  &pMesh , const std::vector< int > &loop ){  pMesh.polygons.push_back( loop ); }
+template< typename Real > void HoleFillPolygon( TriangulatedPolygonMesh< Real > &tpMesh , const std::vector< int > &loop ){ tpMesh.polygons.push_back( loop ); }
+
 template< class Real , typename Mesh >
 void Execute( Mesh &mesh , const std::vector< Point3D< Real > > &colors )
 {
 	int fCount = mesh.faces() , vCount = (int)mesh.vertices.size();
-	if( FillHoles.set )
+	if( HoleFillType.value!=HOLE_FILL_TYPE_NONE )
 	{
 		Timer t;
 		std::vector< std::vector< int > > boundaryLoops = BoundaryLoops( mesh );
 		for( int i=0 ; i<boundaryLoops.size() ; i++ )
 		{
-			Point3D< Real > c;
-			const std::vector< int > &loop = boundaryLoops[i];
-			for( int j=0 ; j<loop.size() ; j++ ) mesh.push_back( loop[j] , loop[(j+1)%loop.size()] , (int)mesh.vertices.size() ) , c += mesh.vertices[ loop[j] ];
-			c /= (int)loop.size();
-			mesh.vertices.push_back( c );
+			if( FullVerbose.set ) printf( "\t%d] Hole size: %d\n" , i+1 , (int)boundaryLoops[i].size() );
+			switch( HoleFillType.value )
+			{
+				case HOLE_FILL_TYPE_CENTER_TRIANGULATION:       HoleFillCenterTriangulation     ( mesh , boundaryLoops[i] ) ; break;
+				case HOLE_FILL_TYPE_MINIMAL_AREA_TRIANGULATION: HoleFillMinimalAreaTriangulation( mesh , boundaryLoops[i] ) ; break;
+				case HOLE_FILL_TYPE_POLYGON:                    HoleFillPolygon                 ( mesh , boundaryLoops[i] ) ; break;
+				default: fprintf( stderr , "[WARNING] Unrecognizd hole-fill type:%d\n" , HoleFillType.value );
+			}
 		}
 		mesh.update();
 		if( Verbose.set ) printf( "Filled in %d holes: %.2f(s)\n" , (int)boundaryLoops.size() , t.elapsed() );
 	}
 	std::vector< Point3D< Real > > vertices = mesh.vertices;
 
-	CMCF< Real >( mesh , Iterations.value , Lump.set );
+	CMCF< Real >( mesh , Iterations.value , Lump.set , fCount );
 
 	if( mesh.faces()!=fCount || mesh.vertices.size()!=vCount )
 	{
@@ -849,20 +1203,45 @@ int main( int argc , char* argv[] )
 		return EXIT_FAILURE;
 	}
 	if( FullVerbose.set ) Verbose.set = true;
+	MeshType.value -= 1;
+	if( HoleFillType.value<0 || HoleFillType.value>=HOLE_FILL_TYPE_COUNT ) HoleFillType.value = HOLE_FILL_TYPE_NONE;
+	if( MeshType.value==MESH_TYPE_TRIANGLE && HoleFillType.value==HOLE_FILL_TYPE_POLYGON ) fprintf( stderr , "[WARNING] Polygon hole-filling not supported for triangle meshes. Disabling hole-filling\n" ) , HoleFillType.value = HOLE_FILL_TYPE_NONE;
 	int fileType;
 	TriangleMesh< Real > tMesh;
+	TriangulatedPolygonMesh< Real > tpMesh;
 	PolygonMesh< Real > pMesh;
 	std::vector< Point3D< Real > > colors;
 	std::vector< PlyColorVertex< float > > vertices;
 	bool propertyFlags[ PlyColorVertex< float >::ReadComponents ];
-	if( Polygonal.set ) PlyReadPolygons ( In.value , vertices , pMesh.polygons  , PlyColorVertex< float >::ReadProperties , propertyFlags , PlyColorVertex< float >::ReadComponents , fileType );
-	else                PlyReadTriangles( In.value , vertices , tMesh.triangles , PlyColorVertex< float >::ReadProperties , propertyFlags , PlyColorVertex< float >::ReadComponents , fileType );
+	switch( MeshType.value )
+	{
+	case MESH_TYPE_POLYGON:              PlyReadPolygons ( In.value , vertices ,  pMesh.polygons , PlyColorVertex< float >::ReadProperties , propertyFlags , PlyColorVertex< float >::ReadComponents , fileType ) ; break;
+	case MESH_TYPE_TRIANGULATED_POLYGON: PlyReadPolygons ( In.value , vertices , tpMesh.polygons , PlyColorVertex< float >::ReadProperties , propertyFlags , PlyColorVertex< float >::ReadComponents , fileType ) ; break;
+	default:                             PlyReadTriangles( In.value , vertices , tMesh.triangles , PlyColorVertex< float >::ReadProperties , propertyFlags , PlyColorVertex< float >::ReadComponents , fileType );
+	}
 	bool hasColor = (propertyFlags[3]||propertyFlags[6]) && (propertyFlags[4]||propertyFlags[7]) && (propertyFlags[5]||propertyFlags[8]);
 
 	colors.resize( vertices.size() );
 	if( hasColor ) for( int i=0 ; i<vertices.size() ; i++ ) colors[i] = Point3D< Real >( vertices[i].color );
 
-	if( Polygonal.set )
+	if( MeshType.value==MESH_TYPE_TRIANGULATED_POLYGON )
+	{
+		tpMesh.update();
+		tpMesh.vertices.resize( vertices.size() );
+		for( int i=0 ; i<vertices.size() ; i++ ) tpMesh.vertices[i] = Point3D< Real >( vertices[i].point );
+		if( !hasColor )
+		{
+			for( int p=0 ; p<tpMesh.polygons.size() ; p++ )
+			{
+				Point3D< Real > n = tpMesh.normal(p);
+				for( int j=0 ; j<tpMesh.polygons[p].size() ; j++ ) colors[ tpMesh.polygons[p][j] ] += n;
+			}
+#pragma omp parallel for
+			for( int i=0 ; i<colors.size() ; i++ ) colors[i] = NormalColor( -colors[i]/(Real)Length( colors[i] ) );
+		}
+		Execute( tpMesh , colors );
+	}
+	else if( MeshType.value==MESH_TYPE_POLYGON )
 	{
 		pMesh.update();
 		pMesh.vertices.resize( vertices.size() );

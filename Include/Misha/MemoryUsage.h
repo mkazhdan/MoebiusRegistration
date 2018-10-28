@@ -214,8 +214,7 @@ class MemoryInfo
 
             long rss;
             if (f) {
-                int n = fscanf(f, "%*d %*s %*c %*d %*d %*d %*d %*d %*lu %*lu %*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %*lu %ld",
-                        &rss);
+                int n = fscanf(f, "%*d %*s %*c %*d %*d %*d %*d %*d %*lu %*lu %*lu %*lu %*lu %*lu %*lu %*ld %*ld %*ld %*ld %*ld %*ld %*lu %*lu %ld", &rss);
                 fclose(f);
             }
             return rss * getpagesize();

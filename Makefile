@@ -52,8 +52,8 @@ LFLAGS += -lgomp -lfftw3 -lfftw3f
 CFLAGS_DEBUG = -DDEBUG -g3
 LFLAGS_DEBUG =
 
-CFLAGS_RELEASE = -O3 -DRELEASE -funroll-loops -ffast-math
-LFLAGS_RELEASE = -O3
+CFLAGS_RELEASE = -O3 -DRELEASE -funroll-loops -ffast-math -g
+LFLAGS_RELEASE = -O3 -g
 
 BIN = Bin/Linux/
 OBJECTS = Bin/Linux/Objects/
@@ -96,7 +96,6 @@ $(BIN):
 
 $(BIN)$(SOFT_TARGET): $(SOFT_OBJECTS)
 
-	
 $(BIN)$(PARAMETRIZATION_TARGET): $(PARAMETRIZATION_OBJECTS) $(SOFT_OBJECTS) 
 	$(CXX) -o $@ $(SOFT_OBJECTS) $(PARAMETRIZATION_OBJECTS) $(LFLAGS)
 

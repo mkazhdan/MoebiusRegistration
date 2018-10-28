@@ -55,6 +55,24 @@ The file is written in <a href="http://www.cc.gatech.edu/projects/large_models/p
 If the file extension is ".sgrid", the grid will be written as a 2D array of values (in binary). If the file extension is ".ply", the grid will be visualized as a triangle mesh obtained by scaling points on the unit sphere in proportion to their value.
 </dd>
 
+<dt>[<b>--mesh</b> &lt;<i>mesh type</i>&gt;]</dt>
+<dd> This integer values specifies the type of mesh used (and how the associated mass and stiffness matrices are defined).<br>
+A value of "1" indicates a triangle mesh with the standard cotangent Laplacian.<br>
+A value of "2" indicates a polygon mesh using the <A HREF="https://dl.acm.org/citation.cfm?doid=1964921.1964997">Discrete Laplacians on General Polygonal Meshes</A> is used.<br>
+A value of "3" indicates that a polygon mesh is used, but the mass and stiffness matrices are defined over non-triangle polygons by adding the center, triangulating by connecting the edges of the polygon to the center, using the standard cotan. Laplacian, but adding the constraint that the value at the center has to be the average of the values at the polygon corners. <br>
+The default value for this parameter is 1.
+</dd>
+
+<dt>[<b>--fill</b> &lt;<i>hole fill type</i>&gt;]</dt>
+<dd> This integer values specifies how holes should be handled.<br>
+A value of "0" indicates that holes should be left as is.<br>
+A value of "1" indicates that each hole should be filled by adding the center of the hole to the list of mesh vertices and adding the triangles defined by connecting the hole edges to the center vertex to the list of polygons.<br>
+A value of "2" indicates that each hole should be filled by using the minimal area triangulation of the hole boundary. <br>
+A value of "3" indicates that each hole should be filled by adding the polygon whose edges are made up of the hole boundary. (This is not supported when the <b>--mesh</b> type is set to 1.)
+The default value for this parameter is 0.
+</dd>
+
+
 <dt>[<b>--iters</b> &lt;<i>number of CMCF iterations</i>&gt;]</dt>
 <dd> This integer values specifies the number of Conformalized Mean Curvature Flow iterations to be used to obtain the conformal spherical parametrization.<br>
 The default value for this parameter is 100.
@@ -117,14 +135,6 @@ The default value for this parameter is 0.000001.
 
 <dt>[<b>--collapse</b>]</dt>
 <dd> If enabled, the triangles falling into a single equirectangular cell are collapsed into a single quad before extracting the spherical tessellation.
-</dd>
-
-<dt>[<b>--poly</b>]</dt>
-<dd> If enabled, a polygonal Laplacian is used. (Otherwise, all polygons will be triangulated using a minimal area triangulation.)
-</dd>
-
-<dt>[<b>--fill</b>]</dt>
-<dd> If enabled, each hole in the mesh will be filled in by adding a vertex which is at the average of the loop's vertices and adding triangles connecting the loop's edges to the average vertex.
 </dd>
 
 <dt>[<b>--ascii</b>]</dt>
@@ -231,6 +241,11 @@ The default value for this parameter is 1.
 <OL>
 <LI> Added support for general polygonal meshes using <A HREF="https://dl.acm.org/citation.cfm?doid=1964921.1964997">Discrete Laplacians on General Polygonal Meshes</A> via the <b>--poly</b> flag.
 <LI> Added support for genus-zero surfaces with boundaries by filling in the holes, via the <b>--fill</b> flag.
+</OL>
+<A HREF="../Version2.5/"><B>Version 2.5</B></A>:
+<OL>
+<LI> Expanded support for polygon mesh types with mass/stiffness matrices obtained by adding the center, triangulating to the center, and constraining the system so that the value at the center is the average value at the polygon vertices.
+<LI> Added support for filling holes by adding the minimal area triangulation and add the polygonal hole to the polygon mesh.
 </OL>
 </UL>
 </DETAILS>

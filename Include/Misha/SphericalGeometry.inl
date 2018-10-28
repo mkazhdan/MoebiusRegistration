@@ -266,7 +266,7 @@ void SphericalGeometry::Mesh< Real >::write( const char* fileName , const std::v
 	PlyWritePolygons( fileName , _vertices , polygons , PlyParametrizedColorVertex< float , Real >::WriteProperties , PlyParametrizedColorVertex< float , Real >::WriteComponents , binary ? PLY_BINARY_NATIVE : PLY_ASCII , NULL , 0 );
 }
 template< class Real >
-void SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< Point3D< Real > >& vertices , bool verbose , bool normalize )
+void SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< Point3D< Real > >& vertices , bool verbose )
 {
 	int plyType;
 	std::vector< PlyParametrizedVertex< float , Real > > _vertices;
@@ -276,10 +276,9 @@ void SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< 
 	masses.resize( polygons.size() );
 #pragma omp parallel for
 	for( int i=0 ; i<polygons.size() ; i++ ) masses[i] = Area( vertices , polygons[i] );
-	if( normalize ) _normalize( verbose );
 }
 template< class Real >
-bool SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< Point3D< Real > >& vertices , std::vector< Point3D< Real > >& colors , bool verbose , bool normalize )
+bool SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< Point3D< Real > >& vertices , std::vector< Point3D< Real > >& colors , bool verbose  )
 {
 	int plyType;
 	bool propertyFlags[ PlyParametrizedColorVertex< float , Real >::ReadComponents ];
@@ -292,7 +291,6 @@ bool SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< 
 	masses.resize( polygons.size() );
 #pragma omp parallel for
 	for( int i=0 ; i<polygons.size() ; i++ ) masses[i] = Area( vertices , polygons[i] );
-	if( normalize ) _normalize( verbose );
 	return hasColor;
 }
 
@@ -576,25 +574,6 @@ int SphericalGeometry::Mesh< Real >::normalizeSH( int iters , int advectionSteps
 		printf( " )\n" );
 	}
 	return iters;
-}
-
-template< class Real >
-void SphericalGeometry::Mesh< Real >::_normalize( bool verbose )
-{
-	Point3D< Real > center;
-	Real area = 0;
-	for( int p=0 ; p<polygons.size() ; p++ )
-	{
-		Real a = SphericalGeometry::Area( vertices , polygons[p] );
-		area += a;
-		center += this->center( p ) * a;
-	}
-	center /= area;
-#pragma omp parallel for
-	for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] -= center;
-#pragma omp parallel for
-	for( int i=0 ; i<vertices.size() ; i++ ) vertices[i] /= (Real)Length( vertices[i] );
-	if( verbose ) std::cout << "Center: " << center << std::endl;
 }
 
 ////////////////////////////////
