@@ -261,7 +261,7 @@ void SphericalGeometry::Mesh< Real >::write( const char* fileName , const std::v
 template< class Real >
 void SphericalGeometry::Mesh< Real >::write( const char* fileName , const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& colors , bool binary ) const
 {
-	std::vector< PlyParametrizedColorVertex< float > > _vertices( vertices.size() );
+	std::vector< PlyParametrizedColorVertex< float , Real > > _vertices( vertices.size() );
 	for( int i=0 ; i<vertices.size() ; i++ ) _vertices[i].point = Point3D< float >( vertices[i] ) , _vertices[i].param = Point3D< float >( this->vertices[i] ) , _vertices[i].color = Point3D< float >( colors[i] );
 	PlyWritePolygons( fileName , _vertices , polygons , PlyParametrizedColorVertex< float , Real >::WriteProperties , PlyParametrizedColorVertex< float , Real >::WriteComponents , binary ? PLY_BINARY_NATIVE : PLY_ASCII , NULL , 0 );
 }
@@ -950,7 +950,7 @@ void SphericalGeometry::Tessellation< Real >::write( const char* fileName , bool
 template< class Real >
 void SphericalGeometry::Tessellation< Real >::write( const char* fileName , const std::vector< Point3D< Real > >& vertices , const std::vector< Point3D< Real > >& colors , bool binary ) const
 {
-	std::vector< PlyParametrizedColorVertex< float > > v( _vertices.size() );
+	std::vector< PlyParametrizedColorVertex< float , Real > > v( _vertices.size() );
 	std::vector< std::vector< int > > p( _polygons.size() );
 	for( int i=0 ; i<_vertices.size() ; i++ )
 	{
