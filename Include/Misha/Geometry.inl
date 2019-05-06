@@ -335,7 +335,7 @@ template<class Real>
 Real Random2( void )
 {
 	long long temp= (long long) ( rand() )*RAND_MAX+rand();
-	return Real( (double(temp)/(RAND_MAX+1))/(RAND_MAX+1) );
+	return Real( (double(temp)/((double)RAND_MAX+1))/((double)RAND_MAX+1) );
 }
 
 template<class Real>

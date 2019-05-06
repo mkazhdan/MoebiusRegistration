@@ -1,4 +1,4 @@
-<CENTER><H1>M&ouml;bius Registration (V2.5)</H1></CENTER>
+<CENTER><H1>M&ouml;bius Registration (V2.51)</H1></CENTER>
 <CENTER>
 <A HREF="#LINKS">links</A>
 <A HREF="#EXECUTABLE">executables</A>
@@ -246,6 +246,10 @@ The default value for this parameter is 1.
 <OL>
 <LI> Expanded support for polygon mesh types with mass/stiffness matrices obtained by adding the center, triangulating to the center, and constraining the system so that the value at the center is the average value at the polygon vertices.
 <LI> Added support for filling holes by adding the minimal area triangulation and add the polygonal hole to the polygon mesh.
+</OL>
+<A HREF="../Version2.51/"><B>Version 2.51</B></A>:
+<OL>
+<LI> Minor changes to support compilation under GCC.
 </OL>
 </UL>
 </DETAILS>

@@ -60,7 +60,7 @@ const char* HoleFillTypeNames[] = { "none" , "center triangulation" , "minimal a
 cmdLineParameter< char* > In( "in" ) , Out( "out" ) , OutGrid( "outG" ) , OutTessellation( "outT" );
 cmdLineParameter< int > Iterations( "iters" , 100 ) , Threads( "threads" , omp_get_num_procs() ) , Resolution( "res" , 256 ) , SHDegree( "degree" , 1 ) , AdvectionSteps( "aSteps" , 10 ) , MeshType( "mesh" , MESH_TYPE_TRIANGLE+1 ) , HoleFillType( "fill" , HOLE_FILL_TYPE_NONE ) , CenterToInversion( "c2i" , 2 );
 cmdLineParameter< float > StepSize( "stepSize" , 0.1f ) , CutOff( "cutOff" , 1e-10f ) , Smooth( "smooth" , 5e-4f ) , AdvectionStepSize( "aStepSize" , 0.05f ) , GSSTolerance( "gssTolerance" , (float)1e-6 ) , PoincareMaxNorm( "poincareMaxNorm" , 2.f );
-cmdLineReadable Verbose( "verbose" ) , FullVerbose( "fullVerbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , NoOrient( "noOrient" ) , Lump( "lump" ) , Spherical( "spherical" );
+cmdLineReadable Verbose( "verbose" ) , FullVerbose( "fullVerbose" ) , ASCII( "ascii" ) , Randomize( "random" ) , NoCenter( "noCenter" ) , Collapse( "collapse" ) , NoOrient( "noOrient" ) , NoGridScale( "noGridScale" ) , Lump( "lump" ) , Spherical( "spherical" );
 
 void Usage( const char* ex )
 {
@@ -92,12 +92,13 @@ void Usage( const char* ex )
 	printf( "\t[--%s]\n" , ASCII.name );
 	printf( "\t[--%s]\n" , Collapse.name );
 	printf( "\t[--%s]\n" , NoOrient.name );
+	printf( "\t[--%s]\n" , NoGridScale.name );
 	printf( "\t[--%s]\n" , Spherical.name );
 	printf( "\t[--%s]\n" , Lump.name );
 	printf( "\t[--%s]\n" , Verbose.name );
 	printf( "\t[--%s]\n" , FullVerbose.name );
 }
-cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , &Verbose , &FullVerbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &SHDegree , &AdvectionSteps , &AdvectionStepSize , &CenterToInversion , &GSSTolerance , &PoincareMaxNorm , &Lump , &MeshType , &HoleFillType , &Spherical , NULL };
+cmdLineReadable* params[] = { &In , &Out , &OutGrid , &OutTessellation , &Iterations , &StepSize , &Threads , &Verbose , &FullVerbose , &Randomize , &ASCII , &NoCenter , &Resolution , &Smooth , &Collapse , &NoOrient , &SHDegree , &AdvectionSteps , &AdvectionStepSize , &CenterToInversion , &GSSTolerance , &PoincareMaxNorm , &Lump , &MeshType , &HoleFillType , &Spherical , &NoGridScale , NULL };
 
 template< class Real >
 Point3D< Real > NormalColor( Point3D< Real > n )
@@ -285,7 +286,7 @@ struct TriangleMesh : public Mesh< Real >
 			for( int j=0 ; j<M.rowSizes[i] ; j++ ) row[ M[i][j].N ] += M[i][j].Value;
 			M.SetRowSize( i , (int)row.size() );
 			int j=0;
-			for( std::unordered_map< int , Real >::const_iterator iter=row.begin() ; iter!=row.end() ; iter++ ) M[i][j++] = MatrixEntry< Real , int >( iter->first , iter->second );
+			for( typename std::unordered_map< int , Real >::const_iterator iter=row.begin() ; iter!=row.end() ; iter++ ) M[i][j++] = MatrixEntry< Real , int >( iter->first , iter->second );
 		}
 		return M;
 	}
@@ -664,7 +665,7 @@ struct TriangulatedPolygonMesh : public Mesh< Real >
 			for( int j=0 ; j<M.rowSizes[i] ; j++ ) row[ M[i][j].N ] += M[i][j].Value;
 			M.SetRowSize( i , (int)row.size() );
 			int j=0;
-			for( std::unordered_map< int , Real >::const_iterator iter=row.begin() ; iter!=row.end() ; iter++ ) M[i][j++] = MatrixEntry< Real , int >( iter->first , iter->second );
+			for( typename std::unordered_map< int , Real >::const_iterator iter=row.begin() ; iter!=row.end() ; iter++ ) M[i][j++] = MatrixEntry< Real , int >( iter->first , iter->second );
 		}
 		return M;
 	}
@@ -1058,7 +1059,11 @@ void Execute( SphericalGeometry::Mesh< Real > &mesh , const std::vector< Point3D
 		if( OutGrid.set )
 		{
 			char* ext = GetFileExtension( OutGrid.value );
-			if     ( !strcasecmp( ext , "ply" ) ) tessellator.writeGrid( OutGrid.value , Smooth.value , []( Real v ){ return v<0 ? (Real)-sqrt(-v) : (Real)sqrt(v); } , !ASCII.set );
+			if     ( !strcasecmp( ext , "ply" ) )
+			{
+				if( NoGridScale.set ) tessellator.writeGrid( OutGrid.value , Smooth.value , []( Real v ){ return (Real)1; } , !ASCII.set );	
+				else                  tessellator.writeGrid( OutGrid.value , Smooth.value , []( Real v ){ return v<0 ? (Real)-sqrt(-v) : (Real)sqrt(v); } , !ASCII.set );
+			}
 			else if( !strcasecmp( ext , "sgrid" ) )
 			{
 				SphericalGrid< float > _sGrid;
