@@ -1,5 +1,6 @@
 LIBRARY_SRC = Include/
 SRC = ./
+DIR_SOFT = ./SOFT1.0
 
 SOFT_SOURCE = \
 	Soft1.0/cospmls.cpp \
@@ -71,7 +72,7 @@ REGISTER_OBJECTS=$(addprefix $(OBJECTS), $(addsuffix .o, $(basename $(REGISTER_S
 all: CFLAGS += $(CFLAGS_RELEASE)
 all: LFLAGS += $(LFLAGS_RELEASE)
 all: $(BIN)
-all: $(BIN)$(SOFT_TARGET)
+all: $(SOFT_OBJECTS)
 all: $(BIN)$(PARAMETRIZATION_TARGET)
 all: $(BIN)$(SPHERE_MAP_TARGET)
 all: $(BIN)$(REGISTER_TARGET)
@@ -79,13 +80,13 @@ all: $(BIN)$(REGISTER_TARGET)
 debug: CFLAGS += $(CFLAGS_DEBUG)
 debug: LFLAGS += $(LFLAGS_DEBUG)
 debug: $(BIN)
-debug: $(BIN)$(SOFT_TARGET)
+debug: $(SOFT_OBJECTS)
 debug: $(BIN)$(PARAMETRIZATION_TARGET)
 debug: $(BIN)$(SPHERE_MAP_TARGET)
 debug: $(BIN)$(REGISTER_TARGET)
 
 clean:
-	rm -r $(BIN)
+	rm -r Bin/
 
 $(BIN):
 	$(MD) -p $(BIN)
@@ -94,7 +95,8 @@ $(BIN):
 	$(MD) -p $(OBJECTS)$(SPHERE_MAP_TARGET)
 	$(MD) -p $(OBJECTS)$(REGISTER_TARGET)
 
-$(BIN)$(SOFT_TARGET): $(SOFT_OBJECTS)
+$(OBJECTS)$(SOFT_TARGET)/%.o: $(DIR_SOFT)/%.cpp 
+	$(CXX) $(LFLAGS) -c -o $@ $< 
 
 $(BIN)$(PARAMETRIZATION_TARGET): $(PARAMETRIZATION_OBJECTS) $(SOFT_OBJECTS) 
 	$(CXX) -o $@ $(SOFT_OBJECTS) $(PARAMETRIZATION_OBJECTS) $(LFLAGS)
