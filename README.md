@@ -1,4 +1,4 @@
-<CENTER><H1>M&ouml;bius Registration (V2.51)</H1></CENTER>
+<CENTER><H1>M&ouml;bius Registration (V2.52)</H1></CENTER>
 <CENTER>
 <A HREF="#LINKS">links</A>
 <A HREF="#EXECUTABLE">executables</A>
@@ -250,6 +250,10 @@ The default value for this parameter is 1.
 <A HREF="../Version2.51/"><B>Version 2.51</B></A>:
 <OL>
 <LI> Minor changes to support compilation under GCC.
+</OL>
+<A HREF="../Version2.52/"><B>Version 2.51</B></A>:
+<OL>
+<LI> Added check in registration code to make sure input files have spherical parametrization.
 </OL>
 </UL>
 </DETAILS>

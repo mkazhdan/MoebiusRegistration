@@ -269,8 +269,10 @@ template< class Real >
 void SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< Point3D< Real > >& vertices , bool verbose )
 {
 	int plyType;
+	bool propertyFlags[ PlyParametrizedVertex< float , Real >::ReadComponents ];
 	std::vector< PlyParametrizedVertex< float , Real > > _vertices;
-	PlyReadPolygons( fileName , _vertices , polygons , PlyParametrizedVertex< float , Real >::WriteProperties , NULL , PlyParametrizedVertex< float , Real >::WriteComponents , plyType , NULL , 0 );
+	PlyReadPolygons( fileName , _vertices , polygons , PlyParametrizedVertex< float , Real >::WriteProperties , propertyFlags , PlyParametrizedVertex< float , Real >::WriteComponents , plyType , NULL , 0 );
+	if( !(propertyFlags[3] && propertyFlags[4] && propertyFlags[5] ) ) fprintf( stderr , "[ERROR] Couldn't find spherical parametrization\n" ) , exit( 0 );
 	vertices.resize( _vertices.size() );
 	for( int i=0 ; i<vertices.size() ; i++ ) this->vertices[i] = Point3D< Real >( _vertices[i].param ) , vertices[i] = Point3D< Real >( _vertices[i].point );
 	masses.resize( polygons.size() );
@@ -284,6 +286,7 @@ bool SphericalGeometry::Mesh< Real >::read( const char* fileName , std::vector< 
 	bool propertyFlags[ PlyParametrizedColorVertex< float , Real >::ReadComponents ];
 	std::vector< PlyParametrizedColorVertex< float , Real > > _vertices;
 	PlyReadPolygons( fileName , _vertices , polygons , PlyParametrizedColorVertex< float , Real >::WriteProperties , propertyFlags , PlyParametrizedColorVertex< float , Real >::WriteComponents , plyType , NULL , 0 );
+	if( !(propertyFlags[3] && propertyFlags[4] && propertyFlags[5] ) ) fprintf( stderr , "[ERROR] Couldn't find spherical parametrization\n" ) , exit( 0 );
 	bool hasColor = (propertyFlags[6]||propertyFlags[9]) && (propertyFlags[7]||propertyFlags[10]) && (propertyFlags[8]||propertyFlags[11]);
 
 	this->vertices.resize( _vertices.size() ) , vertices.resize( _vertices.size() ) , colors.resize( _vertices.size() );
