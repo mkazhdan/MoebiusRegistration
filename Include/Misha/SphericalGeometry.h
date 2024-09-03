@@ -29,6 +29,8 @@ DAMAGE.
 #ifndef SPHERICAL_GEOMETRY_INCLUDED
 #define SPHERICAL_GEOMETRY_INCLUDED
 
+#define NEW_CODE
+
 #include <iostream>
 #include "Misha/Ply.h"
 #include "Misha/SphericalGrid.h"
